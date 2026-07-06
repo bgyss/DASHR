@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>DASHR - Dynamically Animated Skinned Heightfield Rendering</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      background-color: #1a1a1a;
+      border: none;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">DASHR - Dynamically Animated Skinned Heightfield
+Rendering</h1>
+</header>
+<style>
+body { max-width: 1600px; }
+</style>
+<p><img src="DASHR%20title.png" style="width:75.0%" /></p>
+<p>Tom Forsyth<br />
+<code>tom.forsyth@eelpi.gotdns.org</code><br />
+<a href="https://tomforsyth1000.github.io/"
+class="uri">https://tomforsyth1000.github.io/</a><br />
+<a href="https://mastodon.gamedev.place/@TomF"
+class="uri">https://mastodon.gamedev.place/@TomF</a><br />
+<a href="https://bsky.app/profile/tomforsyth.bsky.social"
+class="uri">https://bsky.app/profile/tomforsyth.bsky.social</a></p>
+<p>This document version 0.1 super early preview, 2026 July 5th</p>
+<h1 id="video">Video</h1>
+<p>TODO: short video.</p>
+<p>TODO: longer video with commentary.</p>
+<h1 id="introduction">Introduction</h1>
+<h2 id="background">Background</h2>
+<p>DASHR is an idea I’ve had kicking around in my head for a long time.
+I wanted to combine the power of volumetric representations and the
+flexibility of raymarch-style traversal, but with the locality and
+cache-friendliness of the standard triangle-based rendering
+pipelines.</p>
+<p>At a macro scale, the existing standard gamedev pipeline of a mesh of
+triangles with 4-bone-per-vertex skinning, an albedo and normal map, and
+maybe also some more advanced BRDF-style shading is extremely powerful.
+Artists have become extremely proficient in authoring this sort of
+model. It has some obvious pain points such as “doing your UVs” -
+mapping the texture onto the mesh in an elegant way without distorting
+the mapping or wasting too much space. On the other hand, artists have
+become very very good at this, and there are various tools to help, and
+once done they do provide an intuitive and useful model for performance
+and quality.</p>
+<p>When rasterised with a depth buffer, triangle-based methods have been
+susceptible to huge advances in hardware acceleration in the standard
+pipelines for Direct3D, OpenGL, Vulkan and Metal. Huge effort has been
+put into making rendering these triangle meshes fast and cache-friendly.
+Triangle mesh rendering is also well-supported in a very different
+rendering architecture in the “tile-based rendering” style of hardware
+acceleration - just as fast, just as clever, and now ubiquitous in
+mobile devices.</p>
+<p>Overall, I am wary of departing too far from the absolutely
+tried-and-tested and blisteringly quick implementations of the
+traditional triangle mesh pipeline.</p>
+<p>And yet meanwhile we have a series of elegant volumetric
+representations of data that are loosely lumped together in the
+“raycasting” category. This includes triangle representations, but also
+Signed Distance Field representations beloved of democoders, myriad
+traversal algorithms in infinite Shadertoy demos, voxel representations,
+fractal representations, the creations from Media Molecule’s Dreams, the
+world of The Tomorrow Children, and whatever amazing thing pours out of
+Inigo Quilez’s head this week.</p>
+<p>It would be glorious to be able to use these far more versatile
+techniques and representations, but they have some fundamental barriers
+to adoption in the existing gamedev pipelines:</p>
+<ul>
+<li>How do people author this content?</li>
+<li>How can the data be rendered on the wide range of existing
+hardware?</li>
+<li>How can we keep the data localised and moderately cache-coherent for
+performance?</li>
+<li>How do you animate and deform this data?</li>
+<li>How does this data interact with existing assets and
+toolchains?</li>
+<li>How do levels-of-detail work for less capable hardware, or longer
+draw distances?</li>
+<li>How can this content be streamed from disk or network?</li>
+<li>How can we reuse the existing tools and not reinvent the wheel?</li>
+</ul>
+<p>All these problems crop up as soon as anything with the word
+“raytracer” or “raymarcher” starts being considered. Some games, such as
+Dreams and The Tomorrow Children, faced this problem head-on and indeed
+reinvented many parts of the authoring and rendering pipeline, and
+sometimes with amazing effect! But it is a long and rough road, I am not
+smart or arrogant enough, and I cannot in good conscience act as Pied
+Piper leading my fellow gamedevs into a new promised land of custom
+toolchains and epically-missed schedules. We need… a compromise.</p>
+<h2 id="previous-work">Previous work</h2>
+<p>Raytracers have been around a long time. They work very well in
+functional terms, but their performance is typically orders of magnitude
+slower than equivalent rasteriser pipelines because they have poor
+memory coherence as they traverse their working set. In addition, it is
+difficult to stream that working set, putting hard limits on the size of
+worlds that can be raytraced without requiring huge memory stores.
+Additionally, most of the techniques to improve memory coherence cost
+even more memory, causing more cache pressure, and they end up not
+helping as much as hoped.</p>
+<p>Hardware acceleration for raytracing has been gradually added to
+GPUs, and it has some success, but the inherently poor cache coherence
+limits its performance even under the best circumstances. More typically
+it is integrated into a conventional rasteriser pipeline, and used for
+shadows and reflections, and even then at a disproportionate performance
+cost. All the current implementations require a significant up-front
+cost to build a spatial acceleration structure (usually a Bounding
+Volume Hierarchy of some kind) and this is a big barrier to raytracing
+animated shapes.</p>
+<p>Raymarching is closely related to raytracing, and the terminology is
+inexact, but the way I use the two terms, a raytracer attempts to find a
+one-shot analytic answer to where on the object an infinitely long ray
+hit, and find the answer in one go. In contrast a raymarcher steps along
+the ray piece by piece, evaluating a function to see if something was
+hit along the way. This allows them to iteratively solve intersections
+that cannot be solved analytically, such as with most complex Signed
+Distance Functions, and raymarchers are used in many fantastic demos and
+Shadertoy programs. There are of course many hybrids of the two
+approaches, and as said the terminology is fluid. DASHR is very much a
+raymarcher and not a raytracer, and in this case the iterative nature is
+core to the algorithm.</p>
+<p>Parallax Mapping has been written about and implemented many times
+and many ways. The idea is to map a heightfield to a standard realtime
+mesh and then raytrace or raymarch through the heightfield as part of
+the pixel shader. This has the advantage of rendering the same mesh as
+used for regular rendering pipelines, and so using many of the existing
+creation tools. The limits of this technique are that silhouette edges
+are not handled correctly, for example as shown in this video: <a
+href="https://www.youtube.com/watch?v=6f37CFbJ9k0"
+class="uri">https://www.youtube.com/watch?v=6f37CFbJ9k0</a> and means
+that the effect breaks down when the size of the heightfield becomes
+significant compared to the size of the model, so it is only useful for
+relatively small displacements. Dealing with texture seams is tricky for
+similar reasons.</p>
+<p>Parallax Occlusion Maps / Shell Maps are an extension of parallax
+mapping for both runtime and offline raytracing. The idea is to model
+the object as a standard mesh, but then extrude the mesh slightly into a
+thicker “shell” or “skin”, then chop that shell into smaller chunks -
+typically prisms or tetrahedra. These smaller primitives then have a low
+enough curvature that they can be rendering with conventional
+raytracing/raymarching methods. An example of this, generating first
+prisms and then tetrahedra, is the paper Shell Maps, Porumbescu, Budge,
+Feng, Joy: <a
+href="https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Porumbescu05.pdf"
+class="uri">https://www.cs.jhu.edu/~misha/ReadingSeminar/Papers/Porumbescu05.pdf</a>
+The biggest limitation is the large number of tetrahedra generated, and
+the difficulty of generating them under dynamic deformation or animation
+- it is not clear how to do this generation quickly, or with GPU
+acceleration.</p>
+<p>DASHR’s algorithm is best considered an evolution of Parallax
+Mapping, and adds many of the concepts of Shell Mapping, such as the
+idea of an extruded shell of triangles. However it does not produce
+extra prism/tetrahedra geometry, and does not attempt to locally
+linearise the problem. It also, aside from some preprocessing, runs
+entirely on the GPU.</p>
+<p>Nonlinear Ray Tracing for Displacement and Shell Mapping, Shinji
+Ogaki, SigGraph Asia 2023: <a
+href="https://github.com/shinjiogaki/nonlinear-ray-tracing"
+class="uri">https://github.com/shinjiogaki/nonlinear-ray-tracing</a>.
+Like Shell Mapping, it starts by chopping the surface into distorted
+prisms, but it requires fewer prisms as it raytraces through them with
+curved lines, solving rational cubic equations rather than straight
+lines. Note that because this paper starts from the perspective of
+raytracing, it spends a fair bit of time talking about the spatial
+acceleration structure, and it is unclear how to move this algorithm to
+an efficient realtime technique.</p>
+<p>TODO: Media Molecule Dreams</p>
+<p>TODO: Voxel-based systems - raytraced Minecraft, The Tomorrow
+Children, Avoyd, etc.</p>
+<p>TODO: Microtriangle systems such as Unreal’s Nanite.</p>
+<h1 id="what-dashr-is">What DASHR is</h1>
+<h2 id="super-tldr">Super TL;DR</h2>
+<ul>
+<li><p>Take a standard skinned mesh with a unique UV mapping. The unique
+UV mapping defines Surface (shell/skin) Space on the mesh.</p></li>
+<li><p>Have a uniquely-mapped Distortion Texture that stores the
+transform from Object Space to Surface Space for each place on the
+mesh’s skin.</p></li>
+<li><p>Each frame, animate the mesh with usual 4-bone skinning,
+calculate the Object Space to Surface Space transform at each vertex,
+and render it as a mesh to the Distortion Texture. The “pixel
+coordinate” is the unique UV mapping, i.e. the position in Surface
+Space.</p></li>
+<li><p>Then render the mesh to the regular framebuffer, extruded by the
+skin thickness, and each pixel shader invocation is a
+raymarcher.</p></li>
+<li><p>The raymarcher traces in Object Space. It reads the Distortion
+Texture to let it transform from Object Space to (distorted, animated)
+Surface Space. Now it knows where it is in Surface Space, it can read
+the heightfield to see if/where it hit.</p></li>
+<li><p>Then the raymarcher uses this new position in Surface Space to
+read the next step of the Distortion Texture. As it steps along in
+linear Object Space, reading the Distortion Texture lets it transform
+that position to a new position in curvy Surface Space.</p></li>
+<li><p>Repeat until the raymarcher hits the heightfield, or exits
+without hitting it.</p></li>
+<li><p>…and there’s lots of details about how to deal with mesh edges
+and seams.</p></li>
+</ul>
+<h2 id="a-less-brief-summary">A less-brief summary</h2>
+<p>First, let me define some terms. I will try to Use Caps For These
+Terms to highlight these precise meanings in the text:</p>
+<ul>
+<li><p><code>Object Space</code>: regular old Euclidean space, centred
+in whatever the “object” is you are rendering - a character, a vehicle,
+a rock. You can do maths here, units are in meters, right angles stay
+right angles, parallel lines never meet, etc. Good stuff.</p></li>
+<li><p><code>Surface Space</code>: the space defined by a triangular
+mesh’s surface, extruded by a certain thickness. This is also often
+called “tangent space” in many lighting algorithms, and it is defined by
+the Normal, Tangent and Bitangent basis vectors at each vertex. Note
+that in the context of DASHR there are subtle differences between the
+conventional ideas of tangent space, which I will go into later, but the
+mental model is still very similar. This is also called “shell space” or
+“skin space” in some literature. Just like the lighting equivalent,
+Surface Space can be deformed by runtime animation in standard
+ways.</p></li>
+<li><p><code>Unique Mapping</code>: a set of UV coordinates that map any
+point on the mesh surface to a unique spot on a texture. To be explicit,
+no two spots on the mesh may be mapped to the same place in the texture,
+and vice versa. In addition, “gutters” are needed between disjoint parts
+of the mesh. This is a familiar concept in gamedev - some toolchains
+require these for e.g. lightmap generation passes, or normal-map baking
+from higher-resolution assets. There are existing tools to generate
+these if artists are unwilling.</p></li>
+<li><p><code>Distortion Texture</code>: a “texture” (or usually a set of
+textures) that uses the Unique Mapping to wrap around the mesh. Each
+texel on this texture defines a mapping from Object Space to Surface
+Space for that specific point on the mesh. Although conceptually a 3x4
+matrix, it can be stored in a variety of ways in practice. The DASHR
+demo uses three textures, each with four channels, but it can also be
+thought of a single 12-channel texture. This texture is dynamically
+generated each frame.</p>
+<p>Note that the UV coordinates used to look up values in the Distortion
+Texture are the definition of Surface Space, so it may seem odd that it
+stores the mapping from Object Space to Surface Space - if I needed to
+know where I was in Surface Space to look up this transform, I would
+already know where I am in Surface Space! Which is true. But the idea is
+the raymarcher knows <em>approximately</em> where it is in Surface
+Space, and can look up the transform, and hopefully the transform field
+is smooth enough that it can then use the transform to find a better
+approximation of where it is in Surface Space. This iterative loop is
+the core of DASHR.</p></li>
+</ul>
+<p>Then, to implement DASHR, step-by-step:</p>
+<ul>
+<li><p>Take a conventional triangle-based mesh. It should be mapped with
+standard albedo, normal, etc maps. It can be animated with standard
+4-bone-per-vertex animation. So far, this is what 99% of games already
+do.</p></li>
+<li><p>Give the mesh a Unique Mapping UV coordinate, and also at each
+vertex define a normal vector if not already present. From the Unique
+Mapping, generate tangent and bitangent vectors. The normal, tangent and
+bitangent vectors now define a Surface Space at each point on the mesh,
+forming a “skin” with a certain thickness around the mesh.</p></li>
+<li><p>Give the mesh a heightfield and a physical scale for this
+heightfield. This heightfield lives in Surface Space and defines the
+actual rendered surface, with hills and valleys. As with existing
+conventional rendering pipelines, there will usually be an albedo and
+normal map associated with the heightfield, used for shading.</p>
+<p>So far, this is very similar to techniques such a Parallax
+Mapping.</p></li>
+<li><p>A first render pass animates the mesh with the various bones in a
+conventional way, computes the Object Space to Surface Space
+transformation at each vertex. It then passes these to the pixel shader
+which interpolates and writes this transformation to the Distortion
+Texture. This is done by rendering the standard mesh, but the “screen
+position” is the Unique Mapping UV coordinates, and the destination is
+the Distortion Texture (typically mapped as multiple render targets).
+This is why the mapping must be unique - each texel in the Distortion
+Texture should be a unique point on the mesh surface, and written to
+only once.</p></li>
+<li><p>A second “edgefill” render pass does stuff that I’ll talk about
+later. Don’t worry about it for now.</p></li>
+<li><p>The third render pass animates the mesh with the bones (again),
+“inflates” the mesh by the thickness of the skin along the vertex’s
+normal vector, and this is the vertex’s position in Object Space. It
+also reads the Unique Mapping UV coordinates from the vertex, and the
+starting extrusion height of the vertex, and together they are the
+position in Surface Space. It renders the triangle mesh, passing both
+Object Space and Surface Space positions to the pixel shader.</p>
+<ul>
+<li>Each pixel shader invocation knows where on the outer skin it starts
+in both Object Space and Surface Space, and (from where it is on the
+screen) what direction in Object Space the ray from the viewer is
+going.</li>
+<li>The pixel shader steps the ray along its direction in Object Space.
+This is easy, because Object Space has right angles and doesn’t bend.
+The pixel shader absolutely knows where it is in Object Space at all
+times, because it knows where it isn’t, and where it was.</li>
+<li>The pixel shader also tracks where it <em>thinks</em> the ray is in
+Surface Space, however because Surface Space is bendy and also animated,
+it may be slightly wrong.</li>
+<li>Surface Space is defined by the Unique Mapping UV and by the height
+in that space, and it is where both the heightfield and the Distortion
+Texture live. The Distortion Texture defines the mapping from Object
+Space to Surface Space. But of course you need to know where you are in
+Surface Space to know where to read the Distortion Texture!</li>
+<li>Using its best guess of its current position in Surface Space, the
+pixel shader reads the Distortion Texture. It then uses that to
+transform its position in Object Space (which it knows for sure) into a
+new position in Surface Space. This is hopefully a much better guess
+than before, and closer to the truth.</li>
+<li>The raymarcher progresses by making small steps in Object Space, and
+each step it predicts and then refines its guess of its position in
+Surface Space.</li>
+<li>At each point, it uses its estimate of its Surface Space position to
+read the heightfield. If its height in Surface Space is below the
+heightfield - it hit! It finds the intersection point, samples the
+albedo and normal maps, and computes lighting in all the usual
+ways.</li>
+<li>Optionally, it can send another ray out towards one or more lights
+and see if it hits another part of the mesh/heightfield. This raymarch
+is performed in exactly the same way, except that all it cares about is
+hit or miss - whether the point is in shadow or not.</li>
+<li>If the ray position in Surface Space goes beyond the thickness of
+the skin, and outside Surface Space, it has missed the mesh entirely,
+and the pixel is not drawn. This creates correct silhouettes, and the
+standard Z-buffer will deal with “macro-scale” occlusion effects.</li>
+</ul></li>
+</ul>
+<p>Much of this may be familiar to folks who write raycasters or
+pathtracers in Shadertoy, or who have worked with Parallax Mapping in
+the past. The core addition of DASHR is, I think, four key tricks:</p>
+<ul>
+<li><p>The first pass uses the GPU to create, every frame, a mapping
+from Object Space to Surface Space at every point in Surface Space. This
+was previously done in other techniques as an offline process (e.g. in
+Parallax Occlusion Mapping techniques) or as a larger whole-world
+acceleration structure, which is very hard to do every frame. A nice
+bonus is that it uses exactly the same mesh data as in the main render
+pass, just flipping the data around.</p></li>
+<li><p>This gives us a mapping from Object Space to Surface Space, which
+is what we want, but to get it we need to know roughly where we are in
+Surface Space to be able to look the data up! Flipping the key so you
+can look it up from an Object Space coordinate would be great, but
+unfortunately Object Space is 3D and relatively large (it is a volume,
+not a “skin”), and filling that up every frame would be expensive.
+However, if we know where we are starting from in Surface Space, we can
+iteratively traverse through Surface Space (which is curved!) to get
+closer and closer to the desired equivalent of our Object Space using
+iterative approaches.</p></li>
+<li><p>The raymarching step is an iterative path tracer, as used in many
+Signed Distance Field representations. These inherently <em>sample</em>
+their environment and <em>iterate</em> towards a solution, rather than
+attempting to compute it analytically. This is a perfect synergy - to
+traverse Surface Space, we also need an iterative approach. The cunning
+(and fortunate) trick is that both types of iterations can be done at
+the same time. We can iterate through the volumetric data representation
+(heightfields, SDF, voxels, fractals, etc) <em>and</em> iterate through
+the curved Object Space to Surface Space mapping at the same
+time.</p></li>
+</ul>
+<p>This last step was the biggest unknown - could I do both iterations
+at the same time, maybe using a few more steps than necessary, or would
+the criteria for one clash with the criteria for the other and cause the
+estimates to diverge wildly and uselessly. As it turns out - it seems to
+work remarkably well in most common cases. Phew!</p>
+<p>The fourth trick is how to deal with seams in the mesh where the mesh
+is smooth but the UV mapping has discontinuities or large distortions.
+The next section goes into the details of this.</p>
+<h1 id="details">Details</h1>
+<p>This section will go through the details of each phase in execution
+order. Because some of the preprocessing in the early phases is only
+used later on, it may be a little tricky to read in linear order, and
+some hopping around may be required.</p>
+<p>It also introduces two concepts not covered in the brief overview
+above:</p>
+<ul>
+<li><code>Edgefill Texture</code>: this is a texture generated at start
+of day that is mapped onto the mesh using the same Unique Mapping as
+used by the Distortion Texture. The function of this texture is to flood
+fill outwards from the valid mapped part of the Unique Mapping, and
+replicate data into the unmapped parts - to “fill in the gutters” so
+that all parts of the map have plausible (if not necessary correct)
+data. Each texel of the edgefill texture has two channels that describe
+the UV coordinate of where in the Unique Mapping this texel should pull
+its data from. Most texels inside the valid mesh will simply store their
+own UV coordinates, resulting in no data movement. Texels beyond the
+edge of the mesh will hold the UV coordinate of the nearest valid texel,
+spreading valid data outwards and filling in the gutters. This
+gutter-filling is a fairly standard concept in many texturing
+techniques, e.g. when producing mipmaps or lightmaps.</li>
+</ul>
+<figure>
+<img src="edgefill%20cube%204.png" style="width:50.0%"
+alt="Edgefill texture with white lines showing the mesh boundaries (in this case a cube)" />
+<figcaption aria-hidden="true">Edgefill texture with white lines showing
+the mesh boundaries (in this case a cube)</figcaption>
+</figure>
+<ul>
+<li><code>Teleport Texture</code>: this is a texture generated at start
+of day that is mapped onto the mesh using the same Unique Mapping as
+used by the Distortion Texture. Each texel of the teleport texture has
+two channels and a “valid” flag. If the “valid” flag is set, the other
+two channels supply UV coordinates of another place in the Unique
+Mapping. The job of this texture is to tell the raymarcher “if you got
+here, you should be over there” and it joins places in the Unique
+Mapping together. This makes seams work - when the raymarcher steps off
+the edge of the mesh (at a seam) in Surface Space, the Teleport Texture
+will tell it where to go to find the corresponding bit of Surface Space
+on the other side of the mesh seam.</li>
+</ul>
+<figure>
+<img src="teleport%20cube%203.png" style="width:50.0%"
+alt="Teleport texture with white lines showing the mesh boundaries (in this case a cube)" />
+<figcaption aria-hidden="true">Teleport texture with white lines showing
+the mesh boundaries (in this case a cube)</figcaption>
+</figure>
+<p>The edgefill and teleport textures are somewhat complementary - they
+both tell the raymarcher what to do when it steps off the edge of the
+mesh in Unique Mapped Surface Space. The Edgefill Texture ensures that
+there is valid data “out there” so that linear interpolation can do the
+right thing, and so that stepping more than a texel off the edge doesn’t
+give junk data. At the same time, the Teleport Texture redirects the
+raymarcher and tells it where to find the adjoining part of the map in
+Surface Space.</p>
+<p>Now you have those concepts, the runtime steps to implement DASHR (or
+at least the sequence used in the demo) are as follows:</p>
+<h2 id="preprocessing-phase">Preprocessing phase</h2>
+<h3 id="author-the-mesh">Author the mesh</h3>
+<p>This is the simplest phase, as it is much like any other conventional
+pipeline. The mesh has a few restrictions that need to be followed:</p>
+<ul>
+<li>A unique UV map must be provided - that is, each part of the UV map
+must correspond to only one part of the mesh (or no part).
+<ul>
+<li>The simplest answer is for an artist to supply this through the
+standard UV mapping interfaces of DCC tools.</li>
+<li>There are also some tools to generate this unique mapping, although
+they might not support some of the other requirements.
+<ul>
+<li>This unique mapping is a common concept, and often required for
+techniques such as generating lightmaps.</li>
+</ul></li>
+</ul></li>
+<li>Sufficient “gutter” space in the UV mapping between edges.</li>
+<li>No T-junctions. This is a common requirement for 3D meshes in
+general.</li>
+<li>All triangles must be the same winding direction (CW/CCW) in UV
+space (this could be relaxed)</li>
+<li>All edges must have have exactly two triangles sharing them,
+possibly a across a seam.</li>
+<li>Smooth normals are required across seams. This could be improved
+with a smarter mesh preprocessor and/or future work.
+<ul>
+<li>Sharp and lone edges could be supported with extra “cliff edge”
+geometry, and is needed for objects such as clothing. I plan to work on
+this soon.</li>
+</ul></li>
+</ul>
+<p>In the current demo, all texture channels (albedo, normal map,
+heightfield) also use this same unique UV mapping, however this is not
+required, and they could use one or more secondary UV channels, and
+their mapping does not need to be unique.</p>
+<p>It is also assumed that the mesh is specified in standard
+D3D/OGL/Metal format of having a triangle specified by three indices,
+each of which indexes into a vertex buffer which has all the information
+required. Where two different UV mappings meet, what I call a “seam”,
+the vertices on that seam will be duplicated. They will be two different
+vertices in the buffer - they will have the same position and normal
+data, but they will have different UV, tangent and bitangent data. Most
+DCC tool output is significantly more complex, with each triangle
+specified but multiple indices (one for each of position, normal, UV
+coord, etc) - this could be supported with effort. However, most
+realtime rendering systems already have pipelines that convert to the
+D3D/OGL/Metal style.</p>
+<p>The incoming mesh does not need valid tangent and bitangent data -
+that will be generated. As the demo currently works, it does require
+normals to be provided, and they need to be smooth across seams.
+However, with future effort the normals could be computed from the mesh
+and some sort of smoothing group data.</p>
+<h3
+id="generate-the-occupancy-map-to-find-which-texels-in-the-distortion-texture-are-covered">Generate
+the Occupancy Map to find which texels in the Distortion Texture are
+covered</h3>
+<p>Most of the following preprocessing phase is done on the CPU, but
+this phase is done on the GPU. To find out which of the texels are
+updated by the per-frame Distortion Pass, we do an initial Distortion
+Pass render. The target is cleared with distinctive data (here I use
+INFinity, since for the demo the Distortion Texture is all float32
+data). Then the standard runtime Distortion Pass (see below) is done,
+using any reasonable animation data. All we care about is which texels
+get data written to them. The texture is copied back to the CPU, and
+where data is still INFinity, we know that this texel was not updated by
+the Distortion Pass. This is marked in a map (in the demo, this is the
+<code>bool surfaceWarpPresent</code> member in the
+<code>TeleportEdgefillData</code> array). This Occupancy Map is used
+later in preprocessing.</p>
+<h3 id="find-prox-vertices">Find prox vertices</h3>
+<p>The vertices of the mesh are scanned to find what I call “proximal”
+vertices - vertices that have the same position in space, but may differ
+in UV coordinate. As the demo currently works, they are also required to
+have the same normals, but future work should relax this. Prox vertices
+are placed in a circular linked list, each pointing to the next.</p>
+<h3 id="find-matching-edges">Find matching edges</h3>
+<p>The triangles are scanned to make sure every edge in the mesh has
+exactly one matching edge, either using the same vertices, or prox
+vertices with the same positions, but different UV coordinates. Note
+that it is important to support “V-shaped” seams - those are seams where
+one vertex is actually shared between the edges, but the other vertices
+are proximal to each other. These are a common feature of real-world
+mesh UV construction to avoid excessive UV distortion. In the demo they
+occur near the ends of the “wiggly tube” mesh.</p>
+<p>TODO: diagram of V-shaped seams.</p>
+<p>If an edge is a true edge, in that the triangles on both sides use
+the same vertices, no further action is necessary. If an edge is a
+“seam” where the vertices used by the triangles on each side share
+position but not UV coordinates, more work is required.</p>
+<figure>
+<img src="teleport%20edgefill%20cube%202.png" style="width:50.0%"
+alt="The inflated-cube mesh with each side of a seam joined by dotted red lines" />
+<figcaption aria-hidden="true">The inflated-cube mesh with each side of
+a seam joined by dotted red lines</figcaption>
+</figure>
+<h3 id="draw-teleports">Draw teleports</h3>
+<p>The Teleport Texture tells the raymarcher how to traverse in Surface
+Space from one side of a seam to the other side. Each seam found in the
+previous phase is traversed in the Unique Mapping space, and for each
+texel on or near the seam edge, we calculate what the closest point on
+the edge is, and thus where the UV coordinate of the other side of seam
+is. This UV coordinate is written into the Teleport Texture. This
+process is done twice, one for each direction of crossing the seam.</p>
+<p>For simplicity, the current demo does not attempt to walk the seam
+edges precisely with Bresenham or equivalent - it simply draws a
+bounding box around the edge, computes the distance to the edge, and
+keeps the values closest to an edge. This makes sure no texels are
+missed, and combined with the next flood fill stage, works surprisingly
+well.</p>
+<p>Where the Occupancy Map tells us that the Distortion Texture will
+have valid data, updated every frame, we do not need to teleport - we
+are inside the mesh, and the Distortion Texture data is valid. So the
+Teleport Texture simply points back at itself and is marked as “invalid”
+at those texels. It is only the texels beyond the edges that are valid,
+and cause the raymarcher to teleport.</p>
+<figure>
+<img src="teleport%20cube%209.png" style="width:50.0%"
+alt="Teleport texture before flood fill" />
+<figcaption aria-hidden="true">Teleport texture before flood
+fill</figcaption>
+</figure>
+<p>In this diagram, the insides are just drawn with their own UV
+coordinates (red = U, green = V), and do not cause teleportation. It is
+only the edges with the different colours that actually cause any
+teleportation.</p>
+<h3 id="draw-edgefill">Draw edgefill</h3>
+<p>Where the Occupancy Map tells us that the Distortion Texture will
+have valid data, the Edgefill Texture’s UV source is just set to its
+current UV value, i.e. the source and destination are the same, no data
+movement required. Where the Occupancy Map is clear, the Edgefill
+Texture remains invalid, ready for the next phase. Note that the inside
+of the edgefill and inside of the teleport textures are the same data
+(stored UV = actual UV), so these phases could be combined.</p>
+<figure>
+<img src="edgefill%20cube%208.png" style="width:50.0%"
+alt="Edgefill texture before flood fill" />
+<figcaption aria-hidden="true">Edgefill texture before flood
+fill</figcaption>
+</figure>
+<p>At the moment, the edgefill texture does nothing interesting - it
+needs the flood-fill phase to work.</p>
+<h3 id="flood-fill-teleport-and-edgefill">Flood-fill teleport and
+edgefill</h3>
+<p>For each currently invalid texel in the Edgefill and Teleport
+Textures that is NOT set in the Occupancy Map, the nearest valid data is
+copied. This effectively does a flood fill of the Edgefill and Teleport
+Textures to fill in all the areas not covered by the Distortion Pass.
+This phase is currently implemented inefficiently in the demo - it could
+be sped up, but it is just a preprocess step, not done every frame.</p>
+<figure>
+<img src="teleport%20cube%205.png" style="width:50.0%"
+alt="Teleport texture after flood fill" />
+<figcaption aria-hidden="true">Teleport texture after flood
+fill</figcaption>
+</figure>
+<figure>
+<img src="edgefill%20cube%206.png" style="width:50.0%"
+alt="Edgefill texture after flood fill" />
+<figcaption aria-hidden="true">Edgefill texture after flood
+fill</figcaption>
+</figure>
+<p>The teleport texture can be hard to interpret. Each seam edge has an
+inside where the Distortion Texture is valid and no teleportation is
+needed. The UV coordinates here are just the UV coordinates of the
+texel, i.e. if the teleport was done, it would have no effect. On the
+other side of the seam, outside the valid Distortion Texture, the
+teleport texture’s UV values are the UV values of the inside of the
+matching seam elsewhere in the Distortion Texture.</p>
+<p>In the following diagram, pairs of edges are highlighted with
+different coloured ellipses. Focusing just inside the white and yellow
+ellipses, it should be clear that their contents are the same colours
+and shapes. So for the white set, in both cases orange is on the left,
+green on the right. The same for the yellow ellipses. One side of the
+teleport texture says “stay here” while the other side says “go to the
+matching one”, thus the colours match in both areas.</p>
+<p>In the case of the cyan ellipses, the same is true even though the
+orientation of the ellipses is different. There is still a burgundy
+colour on one side of the seam, and a green-to-orange gradient on the
+other.</p>
+<figure>
+<img src="teleport%20cube%207.png" style="width:50.0%"
+alt="Teleport before flood fill" />
+<figcaption aria-hidden="true">Teleport before flood fill</figcaption>
+</figure>
+<h3 id="generate-tangent-and-bitangent-data-for-the-mesh">Generate
+tangent and bitangent data for the mesh</h3>
+<p>The incoming mesh should have had valid position, normal and UV data,
+but did not need valid tangent and bitangent data. Although there are
+industry-standard tools (such as the excellent MikkTSpace) to generate
+these spaces, they typically generate tangent spaces where the tangent
+and bitangent are unit-length, and at right angles to each other. This
+is typically fine when using tangent space for normal-map lighting, and
+compresses well to octahedral maps and suchlike.</p>
+<p>However the DASHR algorithm requires tangent and bitangent vectors to
+have lengths that mean physical values, and to accurately point along
+lines of constant U and V, since they form the mapping from Surface
+Space to Object Space. The best way to visualise them is to take a
+single triangle, consider the texture mapped on to it, and extend that
+plane out in space until the whole texture is shown from 0.0 to 1.0 in
+both U and V space. This will be a parallelogram - and quite a large one
+in most cases! The tangent vector is the vector along the “U” side of
+the parallelogram (from V=0.0 to V=1.0), and the bitangent vector is
+along the “V” side of the parallelogram (from U=0.0 to U=1.0). They are
+not necessarily at right-angles to each other (though they should be at
+right-angles to the normal), nor are they necessarily the same lengths,
+and usually neither is unit-length.</p>
+<p>In practice, the tangent and bitangent are only well-defined for each
+triangle of the mesh. For each vertex, we find a weighted average of the
+tangent and bitangent of the adjacent triangles. Here I weight by the
+angle the triangle forms at the vertex, which seems to work well.</p>
+<p>As the demo currently works, the normals for each vertex are taken
+from the source mesh, while the tangent and bitangent are computed as
+above. Pedantically, the normal should be at right angles to both the
+tangent and bitangent (though they are not necessarily at right angles
+to each other). However, the algorithm is robust to all three not being
+at right angles, and there doesn’t seem to be any real need to ensure
+this.</p>
+<p>Also note that if the normals were re-calculated to be at
+right-angles to tangent and bitangent, it adds extra complexity since
+proximal vertices do need to have matching normals, but they will (by
+definition) not share tangent and bitangent data. This means that you
+would need to calculate a normal that was the average of all the
+proximal vertices, then go back into each and recalculate the tangent
+and bitangent so they are at right angles to this new average normal.
+It’s a lot of work, and it does not appear to be necessary to make the
+algorithm work.</p>
+<p>Most existing pipelines will have tools to generate tangent spaces,
+and it should be relatively simple to modify them to produce the correct
+“physical” tangent and bitangent vectors that DASHR requires, either
+instead of or in addition to the standard ones used for normal-map
+lighting. The DASHR demo demonstrates using the physical vectors for
+conventional normal-map lighting.</p>
+<h3 id="finish-preprocessing">Finish preprocessing</h3>
+<p>Discard the Occupancy Map, turn the Teleport and EdgeFill Textures
+into actual GPU textures &amp; discard the source data. Both textures
+are computed only in this preprocessing step and do not need to be
+updated during normal rendering. They are currently stored using float32
+channels for simplicity, but since both store UV coordinates for the
+Distortion Texture, a smaller format of 2x unorm16 would work
+instead.</p>
+<p>Now on to the work done at each frame.</p>
+<h2 id="realtime-phase">Realtime phase</h2>
+<h3 id="render-distortion-texture-1">Render Distortion Texture #1</h3>
+<p>The first pass renders to the Distortion Texture. The HLSL for this
+pass is in <code>PipelineDeform.hlsl</code> in the demo code. Because it
+is a Unique Mapping, no Z buffering or blending is needed. The mesh
+rendered is exactly the same vertex &amp; index buffer data as the main
+render pass, however it is used slightly differently.</p>
+<p>The important thing about this pass is that the destination position
+of the vertex (and then the destination of the pixel shader) is
+<em>not</em> the position in Object Space (or a perspective projection
+of it), as it is in the main render pass. Instead, the destination
+“pixel” coordinate is the Unique Space UV mapping, read directly from
+the vertex buffer, and the place it is rendering to is the Distortion
+Texture (or the multiple textures that it consists of).</p>
+<p>First the vertex shader reads all the usual data from the vertices,
+and performs standard 4-weighted-bone animation as used in almost every
+existing game engine, to produce animated &amp; deformed values for
+position, normal, tangent and bitangent. These vectors are all now in
+Object Space, i.e. they have been animated to the correct object-local
+space. This space is Euclidean, not distorted, and you can do standard
+geometry in it.</p>
+<p>However at each vertex the Unique Mapping UV, normal, tangent and
+bitangent form the basis vectors for Surface Space. This is where the
+heightfield is defined in, and the vertex shader can define a
+transformation (conventionally thought of as a 3x4 matrix) from Surface
+Space to Object Space, formed from these basis vectors. Note the
+direction here - the normal, tangent and bitangent are vectors in Object
+Space, and so if given any point in Surface Space (e.g. a heightmap
+texel), they can transform the point to Object Space. The naming system
+in the demo code tries to be very specific here - this transform is
+called <code>objectFromSurface</code>. The “from” nomenclature is used
+so that when writing multiplication the names match up and provide some
+error checking - you can read more about it in my blog post here: <a
+href="https://tomforsyth1000.github.io/blog.wiki.html#%5B%5BMatrix%20maths%20and%20names%5D%5D"
+class="uri">https://tomforsyth1000.github.io/blog.wiki.html#%5B%5BMatrix%20maths%20and%20names%5D%5D</a></p>
+<p>However, what we want to write into the Distortion Texture is the
+inverse. The raymarcher will know where it is in Object Space - that is
+where the ray is marching through in a straight line. What it wants to
+know is where that is in Surface Space, so this phase inverts that 3x4
+matrix to produce the <code>SurfaceFromObject</code> transform. This is
+then written to the Distortion Texture. The slightly goofy part is that
+as previously mentioned, the position this transform is written to in
+the Distortion Texture (i.e. the destination pixel coordinate in the
+render-target) is the coordinate in Surface Space, formed by the Unique
+Mapping UV.</p>
+<p>Yo dawg - I heard you wanted to know where you were in Surface Space,
+so I gave you a map in Surface Space that gives you a transform to
+Surface Space so you could find out where you are in Surface Space.</p>
+<p>In practice what happens is the raymarcher always knows roughly where
+it is in Surface Space, and the distortion is smooth enough that the
+transform it looks up is close enough that when applied to the known
+Object Space, it gives a more accurate Surface Space position. This
+breaks down in some cases, which I will explore later.</p>
+<p>The pixel shader in this pass is trivial - it interpolates the
+transform and writes it to the Distortion Texture, which is mapped as
+three rendertargets, each made of four float32 components. The only
+thing to note is that while the transforms calculated by the vertex
+shader are accurate, they will be component-wise-interpolated when being
+passed to the pixel shader, which is not necessarily an accurate thing
+to do. This is discussed in the “future work” section.</p>
+<h3 id="render-distortion-texture-2-to-perform-edge-filling">Render
+Distortion Texture #2 to perform edge-filling</h3>
+<p>The previous pass only wrote to the Distortion Texture texels
+actually covered by the mesh. However, as the raymarcher marches around
+the surface, it can stray off the mesh slightly, and it is also using
+bilinear interpolation, so we need to “flood fill” out a bit.</p>
+<p>To do this a pass renders from Distortion Texture #1 to Distortion
+Texture #2 using the edgefill texture as an indirection. For texels that
+are updated by the previous distortion render pass, the edgefill texture
+is simple straight-through mapping. For texels outside the mesh, the
+edgefill texture indirects to the nearest texel that is updated.</p>
+<p>The shader code is in <code>PipelineEdgefill.hlsl</code> and is very
+short. It is fed a single quad that covers the whole destination.</p>
+<figure>
+<img src="edgefill%20cube%204.png" style="width:50.0%"
+alt="Edgefill texture with white lines showing the mesh boundaries (in this case a cube)" />
+<figcaption aria-hidden="true">Edgefill texture with white lines showing
+the mesh boundaries (in this case a cube)</figcaption>
+</figure>
+<figure>
+<img src="edgefill%20cube%206.png" style="width:50.0%"
+alt="Raw edgefill texture. Red = U channel, green = V channel, blue = distance from mesh (illustration only)" />
+<figcaption aria-hidden="true">Raw edgefill texture. Red = U channel,
+green = V channel, blue = distance from mesh (illustration
+only)</figcaption>
+</figure>
+<p>Note that this pass renders from Distortion Texture #1 to a different
+Distortion Texture #2 because for most graphics pipelines you cannot
+bind a surface as both a source and a destination at the same time, so
+unfortunately some of this memory is a simple copy, which is a waste of
+bandwidth. One solution would be to use a compute shader pass instead,
+and only update the texels that need to be copied.</p>
+<h3 id="final-main-render-pass">Final main render pass</h3>
+<p>This phase renders the mesh to the visible framebuffer with the
+regular depth buffer, projection matrices and all the usual parts of a
+render pipeline.</p>
+<p>The shader code is in <code>PipelineMain.hlsl</code>. The vertex
+shader is very conventional. It reads the vertices and animates the
+position and normal with 4-bone-weighted-skinning like a conventional
+pipeline. For ease of reading it also animates the tangent and
+bitangent, although these are not used in this phase.</p>
+<p>The mesh is then extruded by moving the vertex position outwards
+along the vertex normal by half the skin thickness, and the vertices go
+through the standard camera and projection matrix to get mapped to the
+screen.</p>
+<p>The vertex shader then calculates the direction in Object Space of a
+ray being sent from the camera to the vertex. This will be passed to the
+raymarcher in the pixel shader.</p>
+<p>That’s all for the vertex shader - very simple. The pixel shader is
+where the big work happens. However, most of the actual code in the
+<code>ps_main()</code> function is concerned with lighting and
+debugging. These are not particularly unique to DASHR and aside from the
+two calls to <code>TraceRay()</code> should be fairly obvious. There is
+a little subtlety to preventing self-shadowing acne controlled by
+<code>shadowAcneScaler</code> but the comments should explain it
+well.</p>
+<p>The most important interpolated values passed from the vertex shader
+to the pixel shader are the Object Space ray start and ray direction,
+and also the ray start position in Surface Space. Because the pixel
+shader was invoked on the inflated surface of the mesh, it knows the
+starting Surface Space position because that is simply the interpolated
+Unique Mapping UV, combined with a height of 1.0.</p>
+<p>After that, the bulk of the work in the pixel shader is done by the
+call to the function <code>TraceRay()</code>. This gets passed in a ray
+start position and direction in Object Space, the start position in
+Surface Space, and a variety of controls and scales. It has a big loop
+that does the following steps. The ones in bold are the heart of the
+DASHR algorithm:</p>
+<ul>
+<li>Remember the current position and distance above the
+heightfield.</li>
+<li>Find the ray’s Object Space position using the start and direction
+and the current distance travelled.</li>
+<li><strong>Use the Surface Space position to check the teleport texture
+to see if a mesh seam needs to be teleported across.</strong>
+<ul>
+<li>If so, the current position in Surface Space is updated from the
+teleport texture.</li>
+</ul></li>
+<li><strong>Use the Surface Space position to read the
+<code>surfaceFromObject</code> transform from the Distortion
+Texture.</strong>
+<ul>
+<li>Note this is still the previous iteration’s Surface Space
+position.</li>
+</ul></li>
+<li><strong>Calculate the new Surface Space position from the
+<code>surfaceFromObject</code> transform and the new Object Space
+position.</strong>
+<ul>
+<li>This also calculates the Surface Space direction. This is not
+currently used, but it may be useful in future.</li>
+</ul></li>
+<li>If the ray has escaped the Surface Space “skin” volume without
+hitting the surface, return.</li>
+<li>Use the Surface Space position to read the heightfield.
+<ul>
+<li>Compare to the Surface Space position’s height.</li>
+<li>If the ray has hit, interpolate between the previous and current
+positions to get slightly better precision, and return.</li>
+</ul></li>
+<li>Increase the ray distance travelled by an amount related to how far
+above the heightfield you still are.</li>
+</ul>
+<p>Many of these steps are a standard part of any raymarcher, and there
+is nothing particularly clever about this implementation of it, and it
+could certainly be improved in many ways - but it is good enough to
+prove the technique works.</p>
+<p>The key innovations of DASHR are the three steps highlighted in bold.
+Using a rough guess of the Surface Space position, using that to get an
+approximate transform from Object Space to Surface Space, and using that
+to refine the new Surface Space position.</p>
+<p>The other key performance realisation is that the refinement of
+Surface Space position can be done at the same time as the inherent
+raymarching iteration loop. While you are far from the surface,
+precision is not as important, so larger steps can be made. As you
+approach the surface, smaller steps need to be made, and the Surface
+Space precision estimate naturally improves in quality.</p>
+<p>It may turn out that in some cases, these two refinements need to be
+done separately, or that the refinement loop needs to become smarter
+(see the Future Work section for more discussion), but for the majority
+of pixels rendered, this very simple loop works surprisingly well.</p>
+<p>The <code>TraceRay()</code> function is invoked once for the primary
+ray intersection. If it hits the surface, some basic lighting is done,
+and if the surface is facing the light, a second call to
+<code>TraceRay()</code> checks to see if the surface is shadowed by
+other parts of the surface. This is a very simple lighting routine, but
+it serves to demonstrate the flexibility of the core
+<code>TraceRay()</code> functionality.</p>
+<p>TODO: a diagram of a ray marching through curved skin space.</p>
+<h1 id="limitations-and-subtleties">Limitations and subtleties</h1>
+<p>There are many! I will try to point out which are fundamental limits,
+which are tricky parts that could be improved with some effort, and
+which are bits I just haven’t done because of lack of time, or because
+there were more exciting things to tackle first.</p>
+<ul>
+<li><p>The algorithm as-is requires a few things, some of which could be
+fixed with effort (see discussions below):</p>
+<ul>
+<li>A unique UV map for all faces.</li>
+<li>Sufficient “gutter” space in the UV mapping between edges.</li>
+<li>No T-junctions. This is a common requirement for 3D meshes in
+general.</li>
+<li>All triangles must be the same winding direction (CW/CCW) in UV
+space (this could be relaxed)</li>
+<li>All edges must have have exactly two triangles sharing them,
+possibly a across a UV seam.</li>
+<li>Smooth normals are required across seams. This could be improved
+with a smarter mesh preprocessor.
+<ul>
+<li>Sharp and lone edges could be supported with extra “cliff edge”
+geometry, and this ability is needed for objects such as clothing. I
+plan to work on this soon.</li>
+</ul></li>
+</ul></li>
+<li><p>The lengths of the tangent and bitangent matter because they help
+the ray travel through surface space. You can cope to an extent with
+wrong lengths, but it will need to do more iterations.</p>
+<ul>
+<li>Sadly this means existing tools such as MikkTSpace are usually not
+suitable for tangent-space generation, since they produce normalised
+tangent and bitangent vectors. However they could probably be modified
+to support this option.</li>
+</ul></li>
+<li><p>Discontinuities in tangent or bitangent (including in length)
+will disrupt things oddly and cause more iterations.</p>
+<ul>
+<li>Severe ones will cause “tornado poles” to appear where the ray gets
+horribly confused and spirals around.</li>
+<li>It is usually better to force a seam and add a teleport in these
+cases.</li>
+</ul>
+<p>TODO: picture of a tornado pole.</p></li>
+<li><p>Surfaces can bend in on themselves, either due to mesh
+construction and extrusion, or because of animation with large amounts
+of bending. When this happens, the Surface Space self-intersects. In
+general DASHR’s algorithm uses the current Surface Space position, looks
+up the Object To Surface transform with it, and then transforms the new
+Object Space position by this transform to get a new Surface Space
+position. The assumption is that this will be closer to the real Surface
+Space position than the last one. However, when Surface Space inverts
+because of self-intersection, this no longer holds true - the new guess
+can be worse than the previous one, and as the raymarch continues, the
+Surface Space guess might never converge to the correct one.</p>
+<p>In practice what this leads to is that self-intersecting areas
+(e.g. the inside of a sharply-bent elbow) have two “ends” that you can
+look into them from, and you can see the surface just continuing on
+through the actual surface, as if little or no bending had actually
+occurred, making a sort of “tunnel”. In general this is not that
+objectionable - no geometry sticks out - but it does look odd on close
+inspection.</p>
+<p>TODO: picture of this effect.</p>
+<p>Hopefully, some smarter iterative measures will resolve this. For
+example, the raymarcher could notice that the new guess is worse than
+the previous one, and start looking all around it in multiple directions
+and finding the best approximation, rather than just moving in a
+straight line. This is one of the more urgent areas I plan to
+explore.</p>
+<p>TODO: 2D diagram of how this happens.</p></li>
+<li><p>Meanwhile, on the outer edge of large animation distortion,
+beyond a certain curvature the surface starts to bulge out in strange
+ways, and “knuckles” and “sky ghosts” can start appearing. The exact
+cause of this is unknown at the moment, and again this is an urgent area
+of research. My hunch is that the current formulation of the Object To
+Surface transform is not ideal. Although mathematically correct, doing
+component-wise linear interpolation is not a sound operation. This
+happens in the first pass when rendering the Distortion Texture (when
+the transforms are passed from the vertex shader to the pixel shader),
+and then in the main pass when the Distortion Texture is read with
+linear interpolation by the texture unit. There is a different way to
+express the transform that I think should interpolate more robustly, and
+this may improve matters significantly.</p>
+<p>TODO: image of knuckles and sky-ghosts.</p></li>
+<li><p>Because the Teleport Texture must be sampled with point sampling,
+seams that are diagonal or not along texel boundaries can be visible as
+jaggies if the albedo/normal/height maps are not precisely matched. It
+may be reasonable to express the seam more precisely as a slope+offset
+edge and bake these into a side-channel in the Teleport Texture to
+improve this.</p></li>
+<li><p>Self-shadowing stops if the ray goes outside the local skin
+volume, which means for fully correct longer-range self-shadowing
+(e.g. an arm casting shadow on a leg) it should be combined with
+traditional shadowbuffer techniques. This is more an observation than a
+restriction - I do not plan to try to solve this, as long-range tracing
+of shadow rays has many performance implications. A nice thing about
+doing the local self-shadowing with raymarching, but transitioning to
+shadowbuffers for the medium and long range shadows is that the epsilons
+on the shadowbuffering designed to prevent acne and peter-panning can be
+relaxed considerably, as it only needs to start to work at significant
+distance from the surface.</p></li>
+<li><p>Currently the unique UV map determines everything - albedo,
+normal map, heightfield, and tangent space used for shading. This
+doesn’t have to be the case, and those “regular” textures could all use
+a different set of UVs which is not unique. However, if you do this,
+care needs to be taken about where in the code you mean which set of
+UV/tangent spaces, and don’t get them mixed up - I have not been
+particularly careful in the labelling here.</p></li>
+<li><p>If the mesh distortion is pushed too hard, e.g. at the “poles” of
+the wiggly tube, or if the size of the animation is cranked up, or if
+the thickness of the skin is made too large, the raymarcher sees
+“sky-ghosts” and “tornados” floating outside the mesh that I am puzzled
+by. I need to track these down, understand them, and fix them.</p></li>
+<li><p>There are many cases where mesh seams are somewhat ugly and the
+artists would be expected to fix them by making sure the albedo and
+heightfields match on either side of the seam. This is also a problem
+for the current conventional art pipeline of course, but it’s made more
+obvious by adding a heightfield. Good robust solutions to this should be
+investigated.</p></li>
+</ul>
+<h1 id="future-work">Future work</h1>
+<p>I decided to publish this super early. There is still much to do
+before this is bomb-proof, but I wanted to get the core concepts out
+there for folks to try out and play with, even if only in their heads.
+So I focused on the parts that were big unknowns, and worrying me, to
+prove they would work with relatively general, flexible meshes from
+conventional contemporary art pipelines.</p>
+<p>A lot of the rest of the work is “just typing” in that while it’s
+important and significant effort, it is relatively known techniques with
+few surprises. As an example, a lot of compression work will be needed
+to get good practical performance - which after all is one of the main
+points of this work - but exploring this space is familiar to many
+people. Then again, this is graphics - there’s always surprises.</p>
+<p>However some of the work still involves head-scratchers, especially
+the behaviour around areas of high distortion, especially animation.
+These are the top priorities for me.</p>
+<p>I plan to continue working on this for a bit, but I hope others will
+join me in this exploration. That said, I am not looking for Pull
+Requests - this is my hobby, not a job. Please view this as a research
+paper, a proof-of-concept demo, and a starting point for copy-paste into
+your own pipelines - it is not intended to be a practical “live”
+library. That said, I am more than happy to swap war stories over social
+media, or discuss gnarly corner cases, or cunning solutions to those
+corner cases. And if anybody does want to turn it into a real library -
+go for it!</p>
+<h2 id="in-scope">In scope</h2>
+<ul>
+<li><p>Investigate mitigations for “knuckles” and “sky-ghosts” in areas
+of high animation distortion.</p></li>
+<li><p>Investigate mitigations for “tornados” in areas of high
+distortion.</p></li>
+<li><p>Currently the surfaceFromObject mapping is stored as a 3x4
+matrix. This is mathematically sound, but linear interpolation of the
+components does not produce fantastic results, because they interrelate
+to each other in complex ways. I want to change it to be stored in a
+different way so that the individual components are more separate, and
+interpolating each separately will produce a more sensible result. This
+should also make using smaller data formats easier, as each component
+will have a better-defined range and precision.</p></li>
+<li><p>Instead of finding the inverse of surfaceFromObject to do the
+shading step, you could get the initial distortion pass to store it in a
+separate texture.</p></li>
+<li><p>Instead of doing the extra edgefill copy step, you could add mesh
+“fins” to write the extra parts in the first pass.</p>
+<ul>
+<li>You could also possibly do a CS, which can bind a target as
+read&amp;write.</li>
+</ul></li>
+<li><p>In theory, you could do teleports just by having the new
+surfaceFromObject data at the edges, instead of using a separate
+teleport texture. However, because it’s a discontinuity, and we sample
+surfaceFromObject with interpolation, that won’t work at all well. So
+you probably do need the teleport indirection.</p></li>
+<li><p>A lot of data - texture, vertex, etc is stored as big fat float32
+data. This is just for ease of development on my part - I wanted to
+focus on algorithmic puzzles, not constantly go chasing down precision
+problems. Fairly straightforward to improve, and will give big
+performance benefits.</p></li>
+<li><p>The raymarcher does linear interpolation from the previous step
+when it hits the surface, which is fine, but it could instead do a
+binary chop for even better precision. It could do the same when it
+teleports.</p></li>
+<li><p>Larger steps and/or more reliable route-finding could be done by
+comparing the new surfaceFromObject transform with the previous one. If
+the difference is beyond some given threshold, take a smaller step and
+try again.</p></li>
+<li><p>There’s a lot of random tweakables that had to be tuned by eye -
+epsilons and such, especially for the shadows. I would like to automate
+more of them, but we all know rendering is full of epsilons - especially
+shadow rendering.</p></li>
+</ul>
+<h2 id="out-of-scope---at-least-for-me">Out of scope - at least for
+me</h2>
+<ul>
+<li><p>T-junctions, interpenetrating triangles, self-intersecting meshes
+and other strange topologies. In many cases it’s not even clear how to
+define “surface space” for these topologies. I do want to support lone
+edges and thin sheets, e.g. for clothing, but arbitrary triangle soup is
+not a goal.</p></li>
+<li><p>More efficient raymarching and acceleration structures. Better
+lighting models. Ambient occlusion. Subsurface scattering. Other fancy
+effects. All those things are great of course, and if you adapt DASHR to
+your engine you should totally do those improvements, but there’s plenty
+of other papers and tutorials about them, especially in the
+SDF/Shadertoy/raymarcher scene - go read them! The raymarcher in this
+demo is just good enough to show the technique working, and that’s all
+it needs to be.</p></li>
+<li><p>More “volumetric” representations that have solid insides rather
+than just skins. This would allow things like cutting objects in half
+with swords or lightsabers and showing their skeleton inside. It’s cool,
+but the representations are radically different, they burn a lot of
+memory, and it’s not clear how to integrate them with existing art
+pipelines. I shall leave this problem to others.</p></li>
+<li><p>Making DASHR a general robust library that you can drop into your
+own pipeline. This is a research paper and a proof-of-concept demo. I do
+not have the time or bandwidth to make this a public library. I shall
+leave this to others.</p></li>
+<li><p>More general support for SDF, fractal or volumetric rendering.
+The heightfield tracer I have written is very simple, and heightfields
+are a relatively understandable representation, but we still have
+trouble authoring content for them. Authoring SDF or volumes in the
+current art pipelines feels like a very difficult challenge. Games such
+as Dreams have tackled this problem head-on and made amazing things, but
+it’s radically different to our existing pipelines, and it is unclear
+how to merge them.</p>
+<ul>
+<li>That said, a major problem continues with how to animate characters
+in these other pipelines, and it would be fascinating to see if similar
+tricks of using the GPU to render warps from one space to the other
+could be used in those contexts to add animation to their pipelines. I
+think this is an area with lots of interesting research avenues.</li>
+</ul></li>
+</ul>
+<h1 id="thanks">Thanks</h1>
+<ul>
+<li>Omar Cornut for DearImGui and the Win32 example framework. <a
+href="https://github.com/ocornut/imgui"
+class="uri">https://github.com/ocornut/imgui</a></li>
+<li>Gargaj for the bootstrapping, even if not much of your code
+survives: <a href="https://gargaj.github.io/demos-for-dummies"
+class="uri">https://gargaj.github.io/demos-for-dummies</a></li>
+<li>Sean Barrett and Fabian Giesen for the STB_image library. <a
+href="https://github.com/nothings/stb"
+class="uri">https://github.com/nothings/stb</a></li>
+<li>Poly Haven for textures, heightfields and normal maps. <a
+href="https://polyhaven.com" class="uri">https://polyhaven.com</a></li>
+<li>MikkTSpace library for a sanity-check on some of the maths. <a
+href="https://github.com/mmikk/MikkTSpace"
+class="uri">https://github.com/mmikk/MikkTSpace</a></li>
+<li>ccVector for inspiration and the mat44 inverse function: <a
+href="https://github.com/jobtalle/ccVector"
+class="uri">https://github.com/jobtalle/ccVector</a></li>
+</ul>
+<h1 id="license-and-misc">License and misc</h1>
+<p>Released under the most permissive license possible. The intent is
+that everyone put this technique in their engines - share and enjoy!
+Please do let me know if you’re using it for something cool, and if you
+ship, a Special Thanks credit on Mobygames would be lovely.</p>
+<p>I can’t speak for external libraries or assets, but I don’t like or
+use AI/LLMs. Code is for humans, by humans.</p>
+<p>TODO: copy-paste the same licenses the STB library uses. Maybe use
+MIT No Attribution?</p>
+<h1 id="about-the-demo">About the demo</h1>
+<h2 id="building">Building</h2>
+<p>The demo is a Windows DirectX11 demo. You can run the prebuilt
+executable as-is, or build from source. You should only need a recentish
+version of Visual Studio to build it - please let me know if you have
+trouble. It assumes you have the Dear ImGui and STB_Image public
+libraries in adjacent directories:</p>
+<pre><code>\SkinnedHeightfield
+    |main.cpp
+    |skinnedheightfield.vcxproj
+    |skinnedheightfield.sln
+    |ConstantBuffer.hlsl
+    |PipelineDeform.hlsl
+    |PipelineEdgefill.hlsl
+    |PipelineMain.hlsl
+    |Utils.hlsl
+    |yak_shiv_misc.h
+    |yak_shiv_matrix.h
+    \VertexInput.hlsl
+\imgui
+    |imgui.h
+    |imgui_impl_win32.h
+    \imgui_impl_dx11.h
+\stb
+    \stb_image.h</code></pre>
+<p>Note - <code>yak_shiv_misc.h</code> and
+<code>yak_shiv_matrix.h</code> are part of my general-purpose library
+which I <em>do</em> plan to publish shortly. For the moment they are in
+the SkinnedHeightfield repo, but they may vanish/move in future.</p>
+<p>STB libraries: <a href="https://github.com/nothings/stb"
+class="uri">https://github.com/nothings/stb</a></p>
+<p>Dear ImGui libraries: <a href="https://github.com/ocornut/imgui"
+class="uri">https://github.com/ocornut/imgui</a></p>
+<h2 id="controls">Controls:</h2>
+<p>Alt gives Maya-style orbit controls:<br />
+Alt + LMB: orbit focus point.<br />
+Alt + MMB: pan focus point.<br />
+Alt + RMB: zoom in/out of focus point.</p>
+<p>Without Alt, but with LMB you get an FPS camera:<br />
+LMB: rotate camera.<br />
+LMB + RMB: pan up/down, roll left/right<br />
+LMB + WASD: pan left/right and fly forwards/back.</p>
+<p>Esc: toggle window visibility.<br />
+Space: toggle animation on/off.</p>
+<h2 id="sliders-and-options">Sliders and options:</h2>
+<p>TODO - document all these.</p>
+<h1 id="current-raw-todo-list">Current raw TODO list</h1>
+<ul>
+<li>Wireframe
+<ul>
+<li>Also show normal, tangent, bitangent.</li>
+</ul></li>
+<li>StepScale scaling back:
+<ul>
+<li>If StepScale is large and you either hit a teleport or the surface,
+reduce (or zero?) StepScale and try the step again.</li>
+</ul></li>
+<li>Separate out surfaceFromObject components.
+<ul>
+<li>Object offset as unique vector.</li>
+<li>surfaceFromObject then is just a 3x3 rotation &amp; scale.
+<ul>
+<li>Store scales separately.</li>
+<li>When read 3x3 rotation, renormalise vectors first, THEN scale.
+<ul>
+<li>NOTE - still not <em>orthonormal</em> (tangent + bitangent not at 90
+degrees). But it is significantly easier to invert this way.</li>
+</ul></li>
+</ul></li>
+<li>Then add on UV you just looked up.</li>
+</ul></li>
+<li>Separate out the unique UV mapping for distortion, from the
+albedo/normal map UV?
+<ul>
+<li>This would require an extra texture to map from surface space to
+texture space.</li>
+<li>May be simpler to do as a preprocess bake instead, i.e. create a new
+set of unique albedo/normal maps from the supplied ones.</li>
+</ul></li>
+<li>Fix the slab mesh.</li>
+<li>Teleport texture could hold Ax+B edge equation to precisely define
+the edge of the teleport.</li>
+<li>Add bones to the cubesphere mesh.</li>
+<li>Allow the cubesphere to be squished back into a rounded cuboid.</li>
+<li>Tangent-space generation does not generate smooth normals across
+edges.
+<ul>
+<li>Merge with the vertex prox calculation for edge-finding to generate
+smooth normals.</li>
+<li>Make tangents “smooth” by making sure dot(norm,tang) = dot
+(norm,bitang) = 0.</li>
+</ul></li>
+<li>Integrate tinyEXR reader, and read EXR normal maps.</li>
+<li>Load 16-bit PNGs properly and store as 16-bit heightfields.</li>
+<li>Fuzzy surface. Two-channel heightfield - one says 0% solid, other
+says 100% solid?</li>
+<li>Stochastic multi-ray shadows?</li>
+<li>Pixel Z depth out vs not.
+<ul>
+<li>Alpha-test should cover 90% of cases well enough?</li>
+<li>Add MSAA and do alpha-to-coverage for soft edges.</li>
+</ul></li>
+<li>Seams (normals agree)
+<ul>
+<li>Pinch-flat seams</li>
+<li>Cliff-edge seams (i.e. let the Z-buffer deal with it, needs pixel
+depth)</li>
+</ul></li>
+<li>Edges (lone, and normals disagree)
+<ul>
+<li>Pinch-flat edges</li>
+<li>Cliff-edge edges.</li>
+</ul></li>
+<li>Meshes:
+<ul>
+<li>Squircle cross-section (slider for the two straight sides lengths,
+including zero) to show both flat and curved parts meeting.</li>
+<li>Inflated octahedron? Exteme distortion at edges, but hopefully still
+works.
+<ul>
+<li>Build it pathologically so that straight &amp; diagonal edges have
+to meet.</li>
+</ul></li>
+<li>Load arbitrary meshes.
+<ul>
+<li>Rubber duck from Polyhaven.</li>
+</ul></li>
+</ul></li>
+<li>Teleport Texture compression:
+<ul>
+<li>16:16 map.</li>
+<li>Reserve (0,0) as “invalid” because you’d never teleport TO (0,0)
+(you’d always teleport away!)</li>
+</ul></li>
+<li>Pinch animation in general.
+<ul>
+<li>Can we detect it?
+<ul>
+<li>Detect that object-&gt;surface-&gt;object is further away than
+original!
+<ul>
+<li>Just don’t do that step - hold and hope it improves later.</li>
+<li>Try going in reverse instead?</li>
+</ul></li>
+<li>High curvature between successive matrices.
+<ul>
+<li>Detect &amp; take smaller steps. But does that even help for
+pinches? They’re leading in the wrong direction!</li>
+</ul></li>
+</ul></li>
+</ul></li>
+<li>LODs:
+<ul>
+<li>Increase step sizes with distance from camera.</li>
+<li>Reduce length of shadow rays.
+<ul>
+<li>Gently blend from no shadow to full shadow according to distance of
+intersection.</li>
+</ul></li>
+</ul></li>
+<li>A real SDF instead of heightfields.
+<ul>
+<li>Some sort of 2.5D fractal?</li>
+<li>Put iquelles’ snail instead of the heightfield?
+https://www.shadertoy.com/view/ld3Gz2
+<ul>
+<li>Happy Jumping guy is good too, and uses no textures.
+https://www.shadertoy.com/view/3lsSzf</li>
+</ul></li>
+</ul></li>
+<li>Optimisations
+<ul>
+<li>Store normal maps as something better (octahedral?)</li>
+<li>Store heightfield as single-channel 16-bit.</li>
+<li>Find cheaper inverse of surface-to-object (and vice versa) to use
+with lighting.
+<ul>
+<li>Or store both forward and inverse in separate textures, since it’s
+only read once for the lighting.</li>
+</ul></li>
+<li>More efficient surfaceFromObject.</li>
+<li>More efficient objectFromSurface (if used).</li>
+<li>More efficient Teleport Texture.</li>
+<li>Smaller vertex data.</li>
+</ul></li>
+</ul>
+</body>
+</html>

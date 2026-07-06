@@ -1,6 +1,12 @@
 # DASHR
-Dynamically Animated Skinned Heightfield Rendering
+DASHR - Dynamically Animated Skinned Heightfield Rendering
 
-Tom Forsyth, 2026 July 3rd
+Tom Forsyth, 2026 July 5th
 
-More to come soon...
+Download whole directory:
+  Paper: paper/DASHR_Paper.html
+  Executable demo: demo/skinnedheightfield.exe
+  Windows/DirectX code in demo directory.
+  
+
+
