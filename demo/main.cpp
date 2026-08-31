@@ -80,6 +80,8 @@ ID3D11Buffer* g_VertexBuffer = nullptr;
 ID3D11Buffer* g_IndexBuffer = nullptr;
 ID3D11Buffer* g_VertexBufferEdgefill = nullptr;
 ID3D11Buffer* g_IndexBufferEdgefill = nullptr;
+ID3D11Buffer* g_VertexBufferWireframe = nullptr;
+int g_VertexBufferWireframeSize = 0;
 ID3D11Texture2D* g_TextureAlbedo = nullptr;
 ID3D11Texture2D* g_TextureHeight = nullptr;
 ID3D11Texture2D* g_TextureNormal = nullptr;
@@ -91,25 +93,31 @@ ID3D11Buffer* g_ConstantBuffer = nullptr;
 ID3D11Texture2D*          g_TextureSurfaceFromObjectTemp0 = nullptr;
 ID3D11Texture2D*          g_TextureSurfaceFromObjectTemp1 = nullptr;
 ID3D11Texture2D*          g_TextureSurfaceFromObjectTemp2 = nullptr;
+ID3D11Texture2D*          g_TextureSurfaceFromObjectTemp3 = nullptr;
 ID3D11Texture2D*          g_TextureSurfaceFromObject0 = nullptr;
 ID3D11Texture2D*          g_TextureSurfaceFromObject1 = nullptr;
 ID3D11Texture2D*          g_TextureSurfaceFromObject2 = nullptr;
+ID3D11Texture2D*          g_TextureSurfaceFromObject3 = nullptr;
 ID3D11Texture2D*          g_TextureTeleportMap = nullptr;
 ID3D11Texture2D*          g_TextureEdgefillMap = nullptr;
 ID3D11ShaderResourceView* g_TextureSurfaceFromObjectTemp0SRV = nullptr;
 ID3D11ShaderResourceView* g_TextureSurfaceFromObjectTemp1SRV = nullptr;
 ID3D11ShaderResourceView* g_TextureSurfaceFromObjectTemp2SRV = nullptr;
+ID3D11ShaderResourceView* g_TextureSurfaceFromObjectTemp3SRV = nullptr;
 ID3D11ShaderResourceView* g_TextureSurfaceFromObject0SRV = nullptr;
 ID3D11ShaderResourceView* g_TextureSurfaceFromObject1SRV = nullptr;
 ID3D11ShaderResourceView* g_TextureSurfaceFromObject2SRV = nullptr;
+ID3D11ShaderResourceView* g_TextureSurfaceFromObject3SRV = nullptr;
 ID3D11ShaderResourceView* g_TextureTeleportMapSRV = nullptr;
 ID3D11ShaderResourceView* g_TextureEdgefillMapSRV = nullptr;
 ID3D11RenderTargetView*   g_TextureSurfaceFromObjectTemp0RTV = nullptr;
 ID3D11RenderTargetView*   g_TextureSurfaceFromObjectTemp1RTV = nullptr;
 ID3D11RenderTargetView*   g_TextureSurfaceFromObjectTemp2RTV = nullptr;
+ID3D11RenderTargetView*   g_TextureSurfaceFromObjectTemp3RTV = nullptr;
 ID3D11RenderTargetView*   g_TextureSurfaceFromObject0RTV = nullptr;
 ID3D11RenderTargetView*   g_TextureSurfaceFromObject1RTV = nullptr;
 ID3D11RenderTargetView*   g_TextureSurfaceFromObject2RTV = nullptr;
+ID3D11RenderTargetView*   g_TextureSurfaceFromObject3RTV = nullptr;
 
 struct PipelineState
 {
@@ -118,15 +126,16 @@ struct PipelineState
         Pipeline_Main,
         Pipeline_Deform,
         Pipeline_Edgefill,
+        Pipeline_Wireframe,
 
         Pipeline_COUNT
     };
 
     LPCWSTR filename = nullptr;
 
-    ID3D11VertexShader* vertexShader;
-    ID3D11PixelShader* pixelShader;
-    ID3D11InputLayout* inputLayout;
+    ID3D11VertexShader* vertexShader = nullptr;
+    ID3D11PixelShader* pixelShader = nullptr;
+    ID3D11InputLayout* inputLayout = nullptr;
 };
 
 // These three things need to match - g_VertexInputDesc[], VertexBufferStruct, and VS_INPUT in VertexInput.hlsl
@@ -151,6 +160,20 @@ static D3D11_INPUT_ELEMENT_DESC g_VertexInputDesc[] =
 };
 
 
+// These three things need to match - g_VertexInputWireframeDesc[], VertexBufferWireframeStruct, and VS_INPUT_Wireframe in VertexInput.hlsl
+struct VertexBufferWireframeStruct
+{
+    Vec3 Pos;
+    Vec4 Colour;
+};
+
+static D3D11_INPUT_ELEMENT_DESC g_VertexInputWireframeDesc[] =
+{
+    {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0,  0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+    {"COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
+};
+
+
 // All pipelines share the same constant buffer, for simplicity.
 char const* g_ConstantBufferSource;
 char const* g_VertexInputSource;
@@ -161,17 +184,17 @@ PipelineState g_Pipeline[PipelineState::Pipeline_COUNT];
 int g_NumVerts = 3*3*2;
 int g_NumTris = 2*((2*2)*2 + (2)*4);
 VertexBufferStruct* g_VertexData = nullptr;
+VertexBufferStruct* g_VertexDataTemp = nullptr;
 UINT* g_IndexData = nullptr;
 bool g_FreeArrays = false;
 
 int g_NumSegmentsAround = 16;
-int g_NumSegmentsLong = 8;
+int g_NumSegmentsLong = 16;
 float g_MiddleTubeLength = 4.0f;
 float g_MeshRadius = 1.0f;
 float g_SurfaceThickness = 1.0f;
 int g_TextureSet = 0;
 int g_MeshNumber = 0;
-bool g_GenerateTangentSpaceFromMesh = true;
 bool g_FloodFillTeleportEdgefill = true;
 
 int g_NumSegmentsAround_Current = 0;
@@ -182,11 +205,15 @@ float g_SurfaceThickness_Current = 0.0f;
 int g_SurfaceFromObjectTextureSize_Current = 0;
 int g_TextureSet_Current = 0;
 int g_MeshNumber_Current = 0;
-bool g_GenerateTangentSpaceFromMesh_Current = false;
 bool g_FloodFillTeleportEdgefill_Current = false;
+int g_WireframeMode = 0;
+float g_WireframeNormalScale = 0.15f;
+float g_WireframeTangentScale = 0.02f;
 
 int g_SurfaceFromObjectTextureSize = 256;
 int g_SurfaceFromObjectTextureSizePow2 = 8;
+
+VertexBufferWireframeStruct g_WireframeVerts[65536];
 
 // ConstantBufferStruct needs to match between the C version and the shader definition in ConstantBuffer.hlsl
 // Must also be a multiple of 16 bytes, and vec2/3/4 must also be aligned.
@@ -197,27 +224,37 @@ struct ConstantBufferStruct
     Mat44 cameraFromObjectMatrix;
     Mat44 objectFromCameraMatrix;
 
-    float heightScale;
-    float heightOffset;
-    float stepSize;
-    float stepScale;
+    float HeightScale;
+    float HeightOffset;
+    float StepSize;
+    float StepScale;
 
-    Mat44 boneFromObject[4];
+    Mat44 BoneFromObject[4];
 
-    Dir sunDirInObject;
-    float surfaceFromObjectTextureSize;
+    Dir SunDirInObject;
+    float SurfaceFromObjectTextureSize;
 
     int DebugMode;
     int LightingMode;
+    int DistortionMode;
+    int MaxSteps;
+
+	float DampingFactor1;
+	float DampingFactor2;
+	float DampingFactor3;
+    float HeightExtraMeshExtrude;
+
+    float DeltaUVStep;
+    float ShadowAcneScaler;
     float IndirectLighting;
-    float heightNormalsScale;
+    float HeightNormalsScale;
 
-    float deltaUVStep;
-    float shadowAcneScaler;
-    int padding2;
-    int padding3;
+    int DebugIterationsAfterTeleport;
+	int Padding1;
+	int Padding2;
+	int Padding3;
 
-} g_ConstantBufferData;
+} g_ConstantBufferData = {};
 
 const char* DebugModeNames[] = {
     "Off",
@@ -225,6 +262,7 @@ const char* DebugModeNames[] = {
     "Show first iter UVs",  // using the UV calculated at the first iteration.
     "Step counts",          // green = primary step count. Red = shadow step count. Blue = number of teleports.
     "UV grid",              // UV values of primary hit.
+    "Anim Distortion",           // a measure of the animation distortion.
 };
 
 const char* LightingModeNames[] = {
@@ -234,6 +272,20 @@ const char* LightingModeNames[] = {
     "Normalmap lit",
     "Normalmap + shadow raytrace"
 };
+
+const char* DistortionModeNames[] = {
+    "Vanilla mat4x3",
+    "ObjectPos + mat3x3"
+};
+
+const char* WireframeModeNames[] = {
+    "Off",
+    "Rendered mesh",
+    "Rendered mesh and surface space",
+    "Base mesh",
+};
+
+
 
 // Dear ImGui does have its own internal sense of time, but it's good to
 // do this explicitly and have both wall-clock and game time.
@@ -262,12 +314,17 @@ GameObject g_GameObjects[g_NumObjects];
 WorldOrientation g_worldFromShape;
 
 // The animation bones.
-float g_boneAnimSeconds = 0.0f;
-float g_boneAnimSeconds2 = 0.0f;
-float g_boneAnimPeriod = 5.0f;
-float g_boneAnimAmount = 0.4f;
+float g_boneAnimSeconds = 10.0f;
+float g_boneAnimSeconds2 = 10.0f;
+float g_boneAnimPeriod = 12.0f;
+float g_boneAnimAmount = 1.0f;
 bool g_boneAnimPaused = false;
 Orn g_boneFromObject[4];
+
+float g_sunAnimSeconds = 8.0f;
+float g_sunAnimPeriod = 19.0f;
+float g_sunAnimHeight = 0.5f;
+bool g_sunAnimPaused = true;
 
 // Misc state.
 bool g_VsyncEnabled = true;
@@ -278,11 +335,6 @@ WorldOrientation g_WorldFromCamera;
 WorldPosition g_CameraMayaFocusPos;
 float g_MayaFocusDistance = 2.0f;
 float g_nearClipPlane = 0.1f;
-
-float g_sunAnimSeconds = 3.0f;
-float g_sunAnimPeriod = 10.0f;
-float g_sunAnimHeight = 0.5f;
-bool g_sunAnimPaused = true;
 
 const char* AlphaModeNames[] = {
     "Alpha test",
@@ -423,18 +475,25 @@ int main(int, char**)
     g_WorldFromCamera.worldFromObject = Rot::identity;
     bool updateMayaOrbitCamPos = true;
 
-    g_ConstantBufferData.deltaUVStep = 0.1f;
-    g_ConstantBufferData.stepSize = 0.02f;
-    g_ConstantBufferData.stepScale = 10.0f;
-    g_ConstantBufferData.shadowAcneScaler = 0.01f;
+    g_ConstantBufferData.DeltaUVStep = 0.1f;
+    g_ConstantBufferData.StepSize = 0.02f;
+    g_ConstantBufferData.StepScale = 10.0f;
+    g_ConstantBufferData.ShadowAcneScaler = 0.01f;
 
-    g_ConstantBufferData.surfaceFromObjectTextureSize = (float)g_SurfaceFromObjectTextureSize;
-    g_ConstantBufferData.heightScale = 1.0f;
-    g_ConstantBufferData.heightOffset = 0.0f;
-    g_ConstantBufferData.heightNormalsScale = 1.5f;
+    g_ConstantBufferData.SurfaceFromObjectTextureSize = (float)g_SurfaceFromObjectTextureSize;
+    g_ConstantBufferData.HeightScale = 1.0f;
+    g_ConstantBufferData.HeightOffset = 0.0f;
+    g_ConstantBufferData.HeightNormalsScale = 1.5f;
+    g_ConstantBufferData.HeightExtraMeshExtrude = 0.0f;
 
     g_ConstantBufferData.DebugMode = 0;
     g_ConstantBufferData.LightingMode = 4;
+    g_ConstantBufferData.DistortionMode = 1;
+    g_ConstantBufferData.DebugIterationsAfterTeleport = 0;
+    g_ConstantBufferData.MaxSteps = -1;
+    g_ConstantBufferData.DampingFactor1 = 1.0f;
+    g_ConstantBufferData.DampingFactor2 = 0.0f;
+    g_ConstantBufferData.DampingFactor3 = 1.5f;
     g_ConstantBufferData.IndirectLighting = 0.2f;
 
     g_AlphaMode = 0;
@@ -445,6 +504,7 @@ int main(int, char**)
     g_boneFromObject[1] = Orn ( Rot::identity, Dir::zero );
     g_boneFromObject[2] = Orn ( Rot::identity, Dir::zero );
     g_boneFromObject[3] = Orn ( Rot::identity, Dir::zero );
+
 
 
     // Main loop
@@ -489,7 +549,7 @@ int main(int, char**)
         // The steps should be the size of a texel, but for larger maps it needs to be slightly larger to smooth the filtering a bit.
         D3D11_TEXTURE2D_DESC desc;
         g_TextureHeight->GetDesc ( &desc );
-        g_ConstantBufferData.deltaUVStep = 1.0f / Min ( 512.0f, (float)desc.Width );
+        g_ConstantBufferData.DeltaUVStep = 1.0f / Min ( 512.0f, (float)desc.Width );
 
         g_SurfaceFromObjectTextureSize = 1 << g_SurfaceFromObjectTextureSizePow2;
         if ( ( g_TextureSet != g_TextureSet_Current ) ||
@@ -498,8 +558,7 @@ int main(int, char**)
             CreateTextures();
         }
 
-        if ( ( g_GenerateTangentSpaceFromMesh_Current != g_GenerateTangentSpaceFromMesh ) ||
-             ( g_FloodFillTeleportEdgefill_Current != g_FloodFillTeleportEdgefill ) ||
+        if ( ( g_FloodFillTeleportEdgefill_Current != g_FloodFillTeleportEdgefill ) ||
              ( g_MeshNumber_Current != g_MeshNumber ) ||
              ( g_NumSegmentsAround_Current != g_NumSegmentsAround ) || 
              ( g_NumSegmentsLong_Current != g_NumSegmentsLong ) ||
@@ -589,18 +648,43 @@ int main(int, char**)
         break;
         case 0:
         {
+#if 1
             // Bones are sequential and each offset along the previous one.
             Dir boneForwardVector[4];
             Dir bonePosOffset[4];
+            Dir bonePosTranslate[4];
             Dir boneUpVector ( 0.0f, 1.0f, 0.0f );
-            boneForwardVector[0] = Dir ( 1.0f, 0.0f, 0.0f ); // sideways = more visible.
-            bonePosOffset[0] = Dir ( -0.5f * g_MiddleTubeLength, 0.0f, 0.0f ); // to center the thing better.
-            boneForwardVector[1] = Dir ( boneAnimAmount, boneAnimAmount2, 1.0f );
-            bonePosOffset[1] = Dir ( 0.0f, 0.0f, g_MiddleTubeLength * 0.15f );
-            boneForwardVector[2] = Dir ( 0.0f, boneAnimAmount, 1.0f );
-            bonePosOffset[2] = Dir ( 0.0f, 0.0f, g_MiddleTubeLength * 0.5f );
-            boneForwardVector[3] = Dir ( boneAnimAmount2, boneAnimAmount, 1.0f );
-            bonePosOffset[3] = Dir ( 0.0f, 0.0f, g_MiddleTubeLength * 0.85f );
+            boneForwardVector[0]    = Dir ( 1.0f, 0.0f, 0.0f ); // sideways = more visible.
+            bonePosOffset[0]        = Dir ( -0.5f * g_MiddleTubeLength, 0.0f, 0.0f ); // to center the thing better.
+            bonePosTranslate[0]     = Dir ( 0.0f, 0.0f, 0.0f );
+            boneForwardVector[1]    = Dir ( boneAnimAmount, boneAnimAmount2, 1.0f );
+            bonePosOffset[1]        = Dir ( 0.0f, 0.0f, g_MiddleTubeLength * 0.15f );
+            bonePosTranslate[1]     = Dir ( 0.0f, 0.0f, 0.0f );
+            boneForwardVector[2]    = Dir ( 0.0f, boneAnimAmount, 1.0f );
+            bonePosOffset[2]        = Dir ( 0.0f, 0.0f, g_MiddleTubeLength * 0.5f );
+            bonePosTranslate[2]     = Dir ( 0.0f, 0.0f, 0.0f );
+            boneForwardVector[3]    = Dir ( boneAnimAmount2, boneAnimAmount, 1.0f );
+            bonePosOffset[3]        = Dir ( 0.0f, 0.0f, g_MiddleTubeLength * 0.85f );
+            bonePosTranslate[3]     = Dir ( 0.0f, 0.0f, 0.0f );
+#else
+            // Bones are sequential and each offset along the previous one.
+            Dir boneForwardVector[4];
+            Dir bonePosOffset[4];
+            Dir bonePosTranslate[4];
+            Dir boneUpVector ( 0.0f, 1.0f, 0.0f );
+            boneForwardVector[0]    = Dir ( 1.0f, 0.0f, 0.0f ); // sideways = more visible.
+            bonePosOffset[0]        = Dir ( -0.5f * g_MiddleTubeLength, 0.0f, 0.0f ); // to center the thing better.
+            bonePosTranslate[0]     = Dir ( 0.0f, 0.0f, 0.0f );
+            boneForwardVector[1]    = Dir ( 0.0f, 0.0f, 1.0f );
+            bonePosOffset[1]        = Dir ( 0.0f, 0.0f, g_MiddleTubeLength * 0.15f );
+            bonePosTranslate[1]     = Dir ( 0.0f, 0.0f, g_MiddleTubeLength * 0.10f * boneAnimAmount );
+            boneForwardVector[2]    = Dir ( 0.0f, 0.0f, 1.0f );
+            bonePosOffset[2]        = Dir ( 0.0f, 0.0f, g_MiddleTubeLength * 0.5f );
+            bonePosTranslate[2]     = Dir ( 0.0f, 0.0f, g_MiddleTubeLength * 0.10f * boneAnimAmount2 );
+            boneForwardVector[3]    = Dir ( 0.0f, 0.0f, 1.0f );
+            bonePosOffset[3]        = Dir ( 0.0f, 0.0f, g_MiddleTubeLength * 0.85f );
+            bonePosTranslate[3]     = Dir ( 0.0f, 0.0f, g_MiddleTubeLength * 0.10f * boneAnimAmount );
+#endif
 
             for ( int boneNum = 0; boneNum < 4; boneNum++ )
             {
@@ -608,11 +692,12 @@ int main(int, char**)
                 Dir rightVector = boneUpVector.Cross ( fwdVector ).GetNormalise();
                 Dir upVector = fwdVector.Cross ( rightVector ).GetNormalise();
                 Dir rotateOrigin = bonePosOffset[boneNum];
-                Orn boneFromObject = Orn ( Rot::MakeFromBasis ( rightVector, upVector, fwdVector ), bonePosOffset[boneNum] );
+                Orn boneFromObject = Orn ( Rot::MakeFromBasis ( rightVector, upVector, fwdVector ), bonePosTranslate[boneNum] );
                 if ( boneNum > 0 )
                 {
+                    Orn postShift = Orn ( Rot::identity, rotateOrigin );
                     Orn preShift = Orn ( Rot::identity, -rotateOrigin );
-                    g_boneFromObject[boneNum] = g_boneFromObject[boneNum-1] * boneFromObject * preShift;
+                    g_boneFromObject[boneNum] = g_boneFromObject[boneNum-1] * postShift * boneFromObject * preShift;
                 }
                 else
                 {
@@ -759,13 +844,15 @@ int main(int, char**)
 
                 ImGui::SliderInt("Debug mode", &g_ConstantBufferData.DebugMode, 0, ARRAYSIZE(DebugModeNames) - 1, DebugModeNames[g_ConstantBufferData.DebugMode] );
                 ImGui::SliderInt("Lighting mode", &g_ConstantBufferData.LightingMode, 0, ARRAYSIZE(LightingModeNames) - 1, LightingModeNames[g_ConstantBufferData.LightingMode]);
+                ImGui::SliderInt("Distortion mode", &g_ConstantBufferData.DistortionMode, 0, ARRAYSIZE(DistortionModeNames) - 1, DistortionModeNames[g_ConstantBufferData.DistortionMode]);
                 // Different alpha modes don't do much yet.
                 //ImGui::SliderInt("Tranparency mode", &g_AlphaMode, 0, ARRAYSIZE(AlphaModeNames) - 1, AlphaModeNames[g_AlphaMode]);
+                ImGui::SliderInt("Wireframe mode", &g_WireframeMode, 0, ARRAYSIZE(WireframeModeNames) - 1, WireframeModeNames[g_WireframeMode]);
 
                 ImGui::SeparatorText("ANIMATION:");
                 ImGui::Checkbox("Anim paused", &g_boneAnimPaused);
                 ImGui::SliderFloat("Anim period", &g_boneAnimPeriod, 0.1f, 20.0f);
-                ImGui::SliderFloat("Anim amount", &g_boneAnimAmount, 0.0f, 3.0f);
+                ImGui::SliderFloat("Anim amount", &g_boneAnimAmount, 0.0f, 5.0f);
                 ImGui::Checkbox("Sun anim paused", &g_sunAnimPaused);
                 ImGui::SliderFloat("Sun anim period", &g_sunAnimPeriod, 0.1f, 20.0f);
                 ImGui::SliderFloat("Sun anim elevation", &g_sunAnimHeight, 0.0f, 1.0f);
@@ -773,26 +860,33 @@ int main(int, char**)
                 ImGui::SeparatorText("MESH and TEXTURE (changes will be slow):");
                 ImGui::SliderInt("Texture Set", &g_TextureSet, 0, 10);
                 ImGui::SliderInt("Mesh", &g_MeshNumber, 0, 10);
-                ImGui::SliderInt("Num Segments Long", &g_NumSegmentsLong, 4, 16);
-                ImGui::SliderInt("Num Segments Around", &g_NumSegmentsAround, 4, 16);
+                ImGui::SliderInt("Num Segments Long", &g_NumSegmentsLong, 4, 64);
+                ImGui::SliderInt("Num Segments Around", &g_NumSegmentsAround, 4, 32);
                 ImGui::SliderFloat("Mesh length", &g_MiddleTubeLength, 0.1f, 10.0f);
                 ImGui::SliderFloat("Mesh radius", &g_MeshRadius, 0.1f, 10.0f);
                 ImGui::SliderFloat("Surface thickness", &g_SurfaceThickness, 0.1f, 10.0f);
                 ImGui::SliderInt("SurfaceFromObject size pow2", &g_SurfaceFromObjectTextureSizePow2, 4, 12);
-                ImGui::Checkbox("Generate mesh tangent space", &g_GenerateTangentSpaceFromMesh);
                 ImGui::Checkbox("Floodfill teleport and edgefill", &g_FloodFillTeleportEdgefill);
+                ImGui::SliderFloat("Wireframe normals", &g_WireframeNormalScale, 0.0f, 1.0f);
+                ImGui::SliderFloat("Wireframe tangents", &g_WireframeTangentScale, 0.0f, 1.0f);
 
                 ImGui::SeparatorText("RAYMARCHER:");
-                ImGui::SliderFloat("Step size", &g_ConstantBufferData.stepSize, 0.001f, 0.05f);
-                ImGui::SliderFloat("Step scale", &g_ConstantBufferData.stepScale, 0.0f, 100.0f);
-                ImGui::SliderFloat("Heightfield scale", &g_ConstantBufferData.heightScale, 0.0f, 2.5f);
-                ImGui::SliderFloat("Heightfield offset", &g_ConstantBufferData.heightOffset, -1.0f, 1.0f);                
+                ImGui::SliderFloat("Step size", &g_ConstantBufferData.StepSize, 0.001f, 0.05f);
+                ImGui::SliderFloat("Step scale", &g_ConstantBufferData.StepScale, 0.0f, 100.0f);
+                ImGui::SliderFloat("Heightfield scale", &g_ConstantBufferData.HeightScale, 0.0f, 2.5f);
+                ImGui::SliderFloat("Heightfield offset", &g_ConstantBufferData.HeightOffset, -1.0f, 1.0f);
+                ImGui::SliderFloat("Mesh extra extrusion", &g_ConstantBufferData.HeightExtraMeshExtrude, 0.0f, 1.0f);
+                ImGui::SliderInt("Steps after teleport", &g_ConstantBufferData.DebugIterationsAfterTeleport, 0, 10 );
+                ImGui::SliderInt("Max steps (-1 = off)", &g_ConstantBufferData.MaxSteps, -1, 100 );
+                ImGui::SliderFloat("Damping factor 1", &g_ConstantBufferData.DampingFactor1, 0.0f, 5.0f );
+                ImGui::SliderFloat("Damping factor 2", &g_ConstantBufferData.DampingFactor2, -10.0f, 1.0f );
+                ImGui::SliderFloat("Damping factor 3", &g_ConstantBufferData.DampingFactor3, 1.0f, 5.0f );
 
                 ImGui::SeparatorText("LIGHTING AND SHADOWS:");
                 ImGui::SliderFloat("Indirect lighting", &g_ConstantBufferData.IndirectLighting, 0.0f, 1.0f);
-                ImGui::SliderFloat("Shadow acne offset", &g_ConstantBufferData.shadowAcneScaler, 0.0f, 0.1f);
-                ImGui::SliderFloat("Height scale for normals", &g_ConstantBufferData.heightNormalsScale, 0.0f, 2.0f);
-                ImGui::SliderFloat("DeltaUVStep for height->normal map", &g_ConstantBufferData.deltaUVStep, 0.0f, 0.01f);
+                ImGui::SliderFloat("Shadow acne offset", &g_ConstantBufferData.ShadowAcneScaler, 0.0f, 0.1f);
+                ImGui::SliderFloat("Height scale for normals", &g_ConstantBufferData.HeightNormalsScale, 0.0f, 2.0f);
+                ImGui::SliderFloat("DeltaUVStep for height->normal map", &g_ConstantBufferData.DeltaUVStep, 0.0f, 0.01f);
 
                 ImGui::SeparatorText("WINDOWS:");
                 ImGui::Checkbox("Show Teleport Map", &show_debug_window_teleport);
@@ -835,6 +929,7 @@ int main(int, char**)
                 ImGui::Image((ImTextureID)(intptr_t)g_TextureSurfaceFromObject0SRV, ImVec2(show_debug_window_surface_from_object_zoom * (float)g_SurfaceFromObjectTextureSize, show_debug_window_surface_from_object_zoom * (float)g_SurfaceFromObjectTextureSize));
                 ImGui::Image((ImTextureID)(intptr_t)g_TextureSurfaceFromObject1SRV, ImVec2(show_debug_window_surface_from_object_zoom * (float)g_SurfaceFromObjectTextureSize, show_debug_window_surface_from_object_zoom * (float)g_SurfaceFromObjectTextureSize));
                 ImGui::Image((ImTextureID)(intptr_t)g_TextureSurfaceFromObject2SRV, ImVec2(show_debug_window_surface_from_object_zoom * (float)g_SurfaceFromObjectTextureSize, show_debug_window_surface_from_object_zoom * (float)g_SurfaceFromObjectTextureSize));
+                ImGui::Image((ImTextureID)(intptr_t)g_TextureSurfaceFromObject3SRV, ImVec2(show_debug_window_surface_from_object_zoom * (float)g_SurfaceFromObjectTextureSize, show_debug_window_surface_from_object_zoom * (float)g_SurfaceFromObjectTextureSize));
                 ImGui::End();
             }
 
@@ -885,12 +980,12 @@ int main(int, char**)
         g_ConstantBufferData.objectFromCameraMatrix = cameraFromObjectMatrix.GetInverse();
 
         Rot objectFromWorld = worldFromObject.worldFromObject.GetTranspose();
-        g_ConstantBufferData.sunDirInObject = (objectFromWorld * sunDirInWorld).GetNormalise();
+        g_ConstantBufferData.SunDirInObject = (objectFromWorld * sunDirInWorld).GetNormalise();
 
         // Transfer bones.
         for ( int boneNum = 0; boneNum < 4; boneNum++ )
         {
-            g_ConstantBufferData.boneFromObject[boneNum] = g_boneFromObject[boneNum].ToMat44();
+            g_ConstantBufferData.BoneFromObject[boneNum] = g_boneFromObject[boneNum].ToMat44();
         }
 
         // --- Clear the buffers.
@@ -900,13 +995,15 @@ int main(int, char**)
         g_pd3dDeviceContext->ClearDepthStencilView(g_DepthStencilView, D3D11_CLEAR_DEPTH, 0.0f, 0); // reverze Z puts the far plane at 0.0f
 
         // Don't technically NEED to clear these, since we're going to render all the relevant parts every frame anyway.
-        const float zero[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+        const float zero[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
         g_pd3dDeviceContext->ClearRenderTargetView(g_TextureSurfaceFromObjectTemp0RTV, zero);
         g_pd3dDeviceContext->ClearRenderTargetView(g_TextureSurfaceFromObjectTemp1RTV, zero);
         g_pd3dDeviceContext->ClearRenderTargetView(g_TextureSurfaceFromObjectTemp2RTV, zero);
+        g_pd3dDeviceContext->ClearRenderTargetView(g_TextureSurfaceFromObjectTemp3RTV, zero);
         g_pd3dDeviceContext->ClearRenderTargetView(g_TextureSurfaceFromObject0RTV, zero);
         g_pd3dDeviceContext->ClearRenderTargetView(g_TextureSurfaceFromObject1RTV, zero);
         g_pd3dDeviceContext->ClearRenderTargetView(g_TextureSurfaceFromObject2RTV, zero);
+        g_pd3dDeviceContext->ClearRenderTargetView(g_TextureSurfaceFromObject3RTV, zero);
 
         // --- Render the scene
 
@@ -926,12 +1023,13 @@ int main(int, char**)
             g_pd3dDeviceContext->RSSetViewports(1, &viewport);
 
             // Subtley - need to set new RTs to unbind the previous RTs before you set them as textures!
-            ID3D11RenderTargetView *rtvs[3] = {
+            ID3D11RenderTargetView *rtvs[4] = {
                 g_TextureSurfaceFromObject0RTV,
                 g_TextureSurfaceFromObject1RTV,
                 g_TextureSurfaceFromObject2RTV,
+                g_TextureSurfaceFromObject3RTV,
             };
-            g_pd3dDeviceContext->OMSetRenderTargets(3, rtvs, nullptr);
+            g_pd3dDeviceContext->OMSetRenderTargets(4, rtvs, nullptr);
 
             g_pd3dDeviceContext->VSSetShader(curPipeline->vertexShader, nullptr, 0);
             g_pd3dDeviceContext->VSSetConstantBuffers(0, 1, &g_ConstantBuffer);
@@ -943,6 +1041,7 @@ int main(int, char**)
             g_pd3dDeviceContext->PSSetShaderResources( 1, 1, &g_TextureSurfaceFromObjectTemp0SRV );
             g_pd3dDeviceContext->PSSetShaderResources( 2, 1, &g_TextureSurfaceFromObjectTemp1SRV );
             g_pd3dDeviceContext->PSSetShaderResources( 3, 1, &g_TextureSurfaceFromObjectTemp2SRV );
+            g_pd3dDeviceContext->PSSetShaderResources( 4, 1, &g_TextureSurfaceFromObjectTemp3SRV );
             g_pd3dDeviceContext->PSSetSamplers (0, 1, &g_SamplerLinear);
             g_pd3dDeviceContext->PSSetSamplers (1, 1, &g_SamplerPoint);
 
@@ -988,7 +1087,8 @@ int main(int, char**)
             g_pd3dDeviceContext->PSSetShaderResources( 3, 1, &g_TextureSurfaceFromObject0SRV );
             g_pd3dDeviceContext->PSSetShaderResources( 4, 1, &g_TextureSurfaceFromObject1SRV );
             g_pd3dDeviceContext->PSSetShaderResources( 5, 1, &g_TextureSurfaceFromObject2SRV );
-            g_pd3dDeviceContext->PSSetShaderResources( 6, 1, &g_TextureTeleportMapSRV );
+            g_pd3dDeviceContext->PSSetShaderResources( 6, 1, &g_TextureSurfaceFromObject3SRV );
+            g_pd3dDeviceContext->PSSetShaderResources( 7, 1, &g_TextureTeleportMapSRV );
             g_pd3dDeviceContext->PSSetSamplers (0, 1, &g_SamplerLinear);
 
             g_pd3dDeviceContext->OMSetDepthStencilState(g_DepthStencilState, 0);
@@ -1024,6 +1124,137 @@ int main(int, char**)
             g_pd3dDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
             g_pd3dDeviceContext->DrawIndexed((UINT)g_NumTris * 3, 0, 0);
+        }
+
+        // Wireframe pass
+        if ( g_WireframeMode > 0 )
+        {
+            int numLineVerts = 0;
+
+            // Animate the same way the shader does.
+            for ( int vertNum = 0; vertNum < g_NumVerts; vertNum++ )
+            {
+                VertexBufferStruct vertex = g_VertexData[vertNum];
+
+                Orn boneFromObjectTotal;
+                boneFromObjectTotal                  = g_boneFromObject[0].ScalarMultiply ( vertex.BoneWeights.x );
+                boneFromObjectTotal.ComponentwiseInc ( g_boneFromObject[1].ScalarMultiply ( vertex.BoneWeights.y ) );
+                boneFromObjectTotal.ComponentwiseInc ( g_boneFromObject[2].ScalarMultiply ( vertex.BoneWeights.z ) );
+                boneFromObjectTotal.ComponentwiseInc ( g_boneFromObject[3].ScalarMultiply ( vertex.BoneWeights.w ) );
+
+                vertex.Pos       = (boneFromObjectTotal * vertex.Pos.ToPos()       ).ToVec3();
+                vertex.Normal    = (boneFromObjectTotal * vertex.Normal.ToDir()    ).ToVec3();
+                vertex.Tangent   = (boneFromObjectTotal * vertex.Tangent.ToDir()   ).ToVec3();
+                vertex.Bitangent = (boneFromObjectTotal * vertex.Bitangent.ToDir() ).ToVec3();
+
+                if ( g_WireframeMode < 3 )
+                {
+                    // Extrude the base mesh to the rendered one.
+                    vertex.Pos += vertex.Normal * vertex.TexCoord.z * ( g_ConstantBufferData.HeightScale + g_ConstantBufferData.HeightExtraMeshExtrude ) * 0.5f;
+                }
+
+                g_VertexDataTemp[vertNum] = vertex;
+            }
+
+            Vec4 const colourSolid ( 1.0f, 1.0f, 1.0f, 1.0f );
+            Vec4 const colourRed   ( 1.0f, 0.0f, 0.0f, 1.0f );
+            Vec4 const colourGreen ( 0.0f, 1.0f, 0.0f, 1.0f );
+            Vec4 const colourBlue  ( 0.0f, 0.0f, 1.0f, 1.0f );
+
+            UINT *curIndex = g_IndexData;
+            for ( int triNum = 0; triNum < g_NumTris; triNum++ )
+            {
+                int index0 = *curIndex++;
+                int index1 = *curIndex++;
+                int index2 = *curIndex++;
+
+                VertexBufferStruct *v0 = g_VertexDataTemp + index0;
+                VertexBufferStruct *v1 = g_VertexDataTemp + index1;
+                VertexBufferStruct *v2 = g_VertexDataTemp + index2;
+
+                g_WireframeVerts[numLineVerts++] = { v0->Pos, colourSolid };
+                g_WireframeVerts[numLineVerts++] = { v1->Pos, colourSolid };
+                g_WireframeVerts[numLineVerts++] = { v1->Pos, colourSolid };
+                g_WireframeVerts[numLineVerts++] = { v2->Pos, colourSolid };
+                g_WireframeVerts[numLineVerts++] = { v2->Pos, colourSolid };
+                g_WireframeVerts[numLineVerts++] = { v0->Pos, colourSolid };
+            }
+
+            if ( g_WireframeMode == 2 )
+            {
+                // Also draw tangent space.
+                for ( int vertNum = 0; vertNum < g_NumVerts; vertNum++ )
+                {
+                    VertexBufferStruct vertex = g_VertexDataTemp[vertNum];
+                    g_WireframeVerts[numLineVerts++] = { vertex.Pos,                                              colourRed };
+                    g_WireframeVerts[numLineVerts++] = { vertex.Pos + vertex.Tangent   * g_WireframeTangentScale, colourRed };
+                    g_WireframeVerts[numLineVerts++] = { vertex.Pos,                                              colourGreen };
+                    g_WireframeVerts[numLineVerts++] = { vertex.Pos + vertex.Bitangent * g_WireframeTangentScale, colourGreen };
+                    g_WireframeVerts[numLineVerts++] = { vertex.Pos,                                              colourBlue };
+                    g_WireframeVerts[numLineVerts++] = { vertex.Pos + vertex.Normal    * g_WireframeNormalScale,  colourBlue };
+                }
+            }
+
+            ASSERT ( numLineVerts < ARRAYSIZE(g_WireframeVerts) );
+
+            // Do we need to re-create the wireframe VB?
+            if ( ( g_VertexBufferWireframeSize < numLineVerts ) || ( g_VertexBufferWireframe == nullptr ) )
+            {
+                SAFE_RELEASE(g_VertexBufferWireframe);
+                int newNumVerts = numLineVerts * 2;
+                g_VertexBufferWireframeSize = newNumVerts;
+
+                D3D11_BUFFER_DESC bufferDesc = CD3D11_BUFFER_DESC((UINT)sizeof(g_WireframeVerts[0]) * g_VertexBufferWireframeSize, D3D11_BIND_VERTEX_BUFFER, D3D11_USAGE_DYNAMIC, D3D11_CPU_ACCESS_WRITE);
+                HRESULT hres = g_pd3dDevice->CreateBuffer(&bufferDesc, nullptr, &g_VertexBufferWireframe);
+                ASSERT ( hres == S_OK );
+            }
+
+            if ( numLineVerts > 0 )
+            {
+                D3D11_MAPPED_SUBRESOURCE mappedSubRes;
+                g_pd3dDeviceContext->Map(g_VertexBufferWireframe, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedSubRes);
+                CopyMemory(mappedSubRes.pData, &g_WireframeVerts, sizeof(g_WireframeVerts[0]) * numLineVerts);
+                g_pd3dDeviceContext->Unmap(g_VertexBufferWireframe, 0);
+
+                PipelineState const *curPipeline = &(g_Pipeline[PipelineState::Pipeline_Wireframe]);
+
+                const D3D11_VIEWPORT viewport = CD3D11_VIEWPORT(0.0f, 0.0f, (float)g_CurrentWidth, (float)g_CurrentHeight);
+                g_pd3dDeviceContext->RSSetViewports(1, &viewport);
+
+                g_pd3dDeviceContext->OMSetRenderTargets(1, &g_mainRenderTargetView, g_DepthStencilView);
+
+                g_pd3dDeviceContext->VSSetShader(curPipeline->vertexShader, nullptr, 0);
+                g_pd3dDeviceContext->VSSetConstantBuffers(0, 1, &g_ConstantBuffer);
+
+                g_pd3dDeviceContext->PSSetShader(curPipeline->pixelShader, nullptr, 0);
+                g_pd3dDeviceContext->PSSetConstantBuffers( 0, 1, &g_ConstantBuffer);
+
+                if ( g_WireframeMode == 3 )
+                {
+                    g_pd3dDeviceContext->OMSetDepthStencilState(g_DepthStencilStateOff, 0);
+                }
+                else
+                {
+                    g_pd3dDeviceContext->OMSetDepthStencilState(g_DepthStencilState, 0);
+                }
+
+                Vec4 blendFactor ( 0.0f, 0.0f, 0.0f, 0.0f );
+                g_pd3dDeviceContext->OMSetBlendState(g_BlendStateOff, blendFactor.AsFloatPtr(), ~0u);
+                g_pd3dDeviceContext->RSSetState(g_RasterizerState);
+                g_pd3dDeviceContext->IASetInputLayout(curPipeline->inputLayout);
+
+                ID3D11Buffer* buffers[] = { g_VertexBufferWireframe };
+                const UINT stride[] = { sizeof(VertexBufferWireframeStruct) };
+                const UINT offset[] = { 0 };
+
+                g_pd3dDeviceContext->IASetVertexBuffers(0, 1, buffers, stride, offset);
+
+                // An unindexED line list.
+                g_pd3dDeviceContext->IASetIndexBuffer(nullptr, DXGI_FORMAT_R32_UINT, 0);
+                g_pd3dDeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+
+                g_pd3dDeviceContext->Draw(numLineVerts, 0);
+            }
         }
 
         // --- Render the GUI
@@ -1071,12 +1302,13 @@ void RenderDistortionPass()
     const D3D11_VIEWPORT viewport = CD3D11_VIEWPORT(0.0f, 0.0f, (float)g_SurfaceFromObjectTextureSize, (float)g_SurfaceFromObjectTextureSize);
     g_pd3dDeviceContext->RSSetViewports(1, &viewport);
 
-    ID3D11RenderTargetView *rtvs[3] = {
+    ID3D11RenderTargetView *rtvs[4] = {
         g_TextureSurfaceFromObjectTemp0RTV,
         g_TextureSurfaceFromObjectTemp1RTV,
         g_TextureSurfaceFromObjectTemp2RTV,
+        g_TextureSurfaceFromObjectTemp3RTV,
     };
-    g_pd3dDeviceContext->OMSetRenderTargets(3, rtvs, nullptr);
+    g_pd3dDeviceContext->OMSetRenderTargets(4, rtvs, nullptr);
 
     g_pd3dDeviceContext->VSSetShader(curPipeline->vertexShader, nullptr, 0);
     g_pd3dDeviceContext->VSSetConstantBuffers(0, 1, &g_ConstantBuffer);
@@ -1198,25 +1430,31 @@ void CleanupDeviceD3D()
     SAFE_RELEASE(g_TextureSurfaceFromObjectTemp0);
     SAFE_RELEASE(g_TextureSurfaceFromObjectTemp1);
     SAFE_RELEASE(g_TextureSurfaceFromObjectTemp2);
+    SAFE_RELEASE(g_TextureSurfaceFromObjectTemp3);
     SAFE_RELEASE(g_TextureSurfaceFromObject0);
     SAFE_RELEASE(g_TextureSurfaceFromObject1);
     SAFE_RELEASE(g_TextureSurfaceFromObject2);
+    SAFE_RELEASE(g_TextureSurfaceFromObject3);
     SAFE_RELEASE(g_TextureTeleportMap);
     SAFE_RELEASE(g_TextureEdgefillMap);
     SAFE_RELEASE(g_TextureSurfaceFromObjectTemp0SRV);
     SAFE_RELEASE(g_TextureSurfaceFromObjectTemp1SRV);
     SAFE_RELEASE(g_TextureSurfaceFromObjectTemp2SRV);
+    SAFE_RELEASE(g_TextureSurfaceFromObjectTemp3SRV);
     SAFE_RELEASE(g_TextureSurfaceFromObject0SRV);
     SAFE_RELEASE(g_TextureSurfaceFromObject1SRV);
     SAFE_RELEASE(g_TextureSurfaceFromObject2SRV);
+    SAFE_RELEASE(g_TextureSurfaceFromObject3SRV);
     SAFE_RELEASE(g_TextureTeleportMapSRV);
     SAFE_RELEASE(g_TextureEdgefillMapSRV);
     SAFE_RELEASE(g_TextureSurfaceFromObjectTemp0RTV);
     SAFE_RELEASE(g_TextureSurfaceFromObjectTemp1RTV);
     SAFE_RELEASE(g_TextureSurfaceFromObjectTemp2RTV);
+    SAFE_RELEASE(g_TextureSurfaceFromObjectTemp3RTV);
     SAFE_RELEASE(g_TextureSurfaceFromObject0RTV);
     SAFE_RELEASE(g_TextureSurfaceFromObject1RTV);
     SAFE_RELEASE(g_TextureSurfaceFromObject2RTV);
+    SAFE_RELEASE(g_TextureSurfaceFromObject3RTV);
     SAFE_RELEASE(g_TextureHeight);
     SAFE_RELEASE(g_TextureAlbedo);
     SAFE_RELEASE(g_TextureNormal);
@@ -1227,6 +1465,7 @@ void CleanupDeviceD3D()
     SAFE_RELEASE(g_IndexBuffer);
     SAFE_RELEASE(g_VertexBufferEdgefill);
     SAFE_RELEASE(g_IndexBufferEdgefill);
+    SAFE_RELEASE(g_VertexBufferWireframe);
     SAFE_RELEASE(g_RasterizerState);
     SAFE_RELEASE(g_SamplerLinear);
     SAFE_RELEASE(g_SamplerPoint);
@@ -1355,6 +1594,7 @@ void CreateModel()
     if ( g_FreeArrays )
     {
         delete[] g_VertexData;
+        delete[] g_VertexDataTemp;
         delete[] g_IndexData;
     }
 
@@ -1362,6 +1602,7 @@ void CreateModel()
     SAFE_RELEASE(g_IndexBuffer);
     SAFE_RELEASE(g_VertexBufferEdgefill);
     SAFE_RELEASE(g_IndexBufferEdgefill);
+    SAFE_RELEASE(g_VertexBufferWireframe);
 
     g_FreeArrays = false;
     g_MeshNumber_Current = g_MeshNumber;
@@ -1486,6 +1727,7 @@ void CreateModel()
         g_NumTris += 2 * ( ( numSegmentsAroundQuarter - 1 ) * 2 + 1 ) * g_NumSegmentsAround; // ends
 
         g_VertexData = new VertexBufferStruct [g_NumVerts];
+        g_VertexDataTemp = new VertexBufferStruct [g_NumVerts];
         g_IndexData = new UINT[g_NumTris * 3];
         g_FreeArrays = true;
 
@@ -1494,10 +1736,16 @@ void CreateModel()
         VertexBufferStruct* curVert = g_VertexData;
         UINT* curIndex = g_IndexData;
 
-        int numSegmentsLongFull = g_NumSegmentsLong + 2 * numSegmentsAroundQuarter;
+        float endCapLengthInMeters = PI * 0.5f * g_MeshRadius;
+
         {
-            float vScale = 0.8f / (float)numSegmentsLongFull;
-            float vOffset = 0.1f + vScale * (float)numSegmentsAroundQuarter;
+            // Total V length (in meters) = g_MiddleTubeLength + 2 * endCapLengthInMeters
+            // Middle section starts at endCapLengthInMeters
+            float vLength = g_MiddleTubeLength + 2.0f * endCapLengthInMeters;
+
+            // Additional scale by 0.8 and offset by 0.1 allows room at the edges for edgefill/teleport.
+            float vScale = 0.8f * g_MiddleTubeLength / ( vLength * (float)g_NumSegmentsLong );
+            float vOffset = 0.1f + 0.8f * ( endCapLengthInMeters / vLength );
 
             for ( int length = 0; length < g_NumSegmentsLong + 1; length++ )
             {
@@ -1519,20 +1767,6 @@ void CreateModel()
                     curVert->Normal.x =  sinf ( angle ) * g_SurfaceThickness;
                     curVert->Normal.y = -cosf ( angle ) * g_SurfaceThickness;
                     curVert->Normal.z = 0.0f;
-
-                    // Note - tangent and bitangent are only approximate - see note in GenerateTangentSpace()
-
-                    // Tangent points along the texture U (TexCoord.x) direction, and the length is so that 1.0 "U units" = a full circle.
-                    float radiusSize = g_MeshRadius;
-                    curVert->Tangent.x = cosf ( angle ) * ( 2.0f * PI ) * radiusSize;
-                    curVert->Tangent.y = sinf ( angle ) * ( 2.0f * PI ) * radiusSize;
-                    curVert->Tangent.z = 0.0f;
-
-                    // Bitangent points along the texture V direction.
-                    float bitangentLength = g_MiddleTubeLength + ( PI * g_MeshRadius );
-                    curVert->Bitangent.x = 0.0f;
-                    curVert->Bitangent.y = 0.0f;
-                    curVert->Bitangent.z = bitangentLength;
 
                     // Bones weights are somewhat evenly spaced down the tube.
                     curVert->BoneWeights.x = 0.0f;
@@ -1589,12 +1823,18 @@ void CreateModel()
         // End cap verts
         for ( int capNum = 0; capNum < 2; capNum++ )
         {
-            float vScale = 0.8f / (float)numSegmentsLongFull;
-            float vOffset = 0.1f + vScale * (float)numSegmentsAroundQuarter;
+            // Total V length (in meters) = g_MiddleTubeLength + 2 * ( PI/2 * g_MeshRadius )
+            // Middle section starts at PI/2 * g_MeshRadius
+            float vLength = g_MiddleTubeLength + 2.0f * endCapLengthInMeters;
+
+            // Additional scale by 0.8 and offset by 0.1 allows room at the edges for edgefill/teleport.
+            float vScale = 0.8f * endCapLengthInMeters / ( vLength * (float)numSegmentsAroundQuarter );
+            float vOffset = 0.1f + 0.8f * ( endCapLengthInMeters / vLength );
+
             if ( capNum == 1 )
             {
-                vOffset += vScale * g_NumSegmentsLong;
                 vScale = -vScale;
+                vOffset = 0.1f + 0.8f * ( ( endCapLengthInMeters + g_MiddleTubeLength ) / vLength );
             }
 
             for ( int length = 1; length <= numSegmentsAroundQuarter; length++ )
@@ -1625,22 +1865,6 @@ void CreateModel()
                     curVert->Normal.x =  sinf ( angle ) * cosf ( endAngle ) * g_SurfaceThickness;
                     curVert->Normal.y = -cosf ( angle ) * cosf ( endAngle ) * g_SurfaceThickness;
                     curVert->Normal.z = -sinf ( endAngle ) * g_SurfaceThickness;
-
-                    // Note - tangent and bitangent are only approximate - see note in GenerateTangentSpace()
-
-                    // Tangent points along the texture U (TexCoord.x) direction, and the length is so that 1.0 "U units" = a full circle.
-                    // A subtlety here - although the ends are pinched in space, they're pinched so that the texture isn't distorted
-                    // This means the size of the tangent doesn't change with the pinch.
-                    float radiusSize = g_MeshRadius;
-                    curVert->Tangent.x = cosf ( angle ) * ( 2.0f * PI ) * radiusSize;
-                    curVert->Tangent.y = sinf ( angle ) * ( 2.0f * PI ) * radiusSize;
-                    curVert->Tangent.z = 0.0f;
-
-                    // Bitangent points along the texture V direction.
-                    float bitangentLength = g_MiddleTubeLength + ( PI * g_MeshRadius );
-                    curVert->Bitangent.x =  sinf ( angle ) * sinf ( endAngle ) * bitangentLength;
-                    curVert->Bitangent.y = -cosf ( angle ) * sinf ( endAngle ) * bitangentLength;
-                    curVert->Bitangent.z = cosf ( endAngle ) * bitangentLength;
 
                     if ( capNum == 0 )
                     {
@@ -1680,22 +1904,6 @@ void CreateModel()
                         curVert->Normal.x =  sinf ( angle ) * cosf ( endAngle ) * g_SurfaceThickness;
                         curVert->Normal.y = -cosf ( angle ) * cosf ( endAngle ) * g_SurfaceThickness;
                         curVert->Normal.z = -sinf ( endAngle ) * g_SurfaceThickness;
-
-                        // Note - tangent and bitangent are only approximate - see note in GenerateTangentSpace()
-
-                        // Tangent points along the texture U (TexCoord.x) direction, and the length is so that 1.0 "U units" = a full circle.
-                        // A subtlety here - although the ends are pinched in space, they're pinched so that the texture isn't distorted
-                        // This means the size of the tangent doesn't change with the pinch.
-                        radiusSize = g_MeshRadius;
-                        curVert->Tangent.x = cosf ( angle ) * ( 2.0f * PI ) * radiusSize;
-                        curVert->Tangent.y = sinf ( angle ) * ( 2.0f * PI ) * radiusSize;
-                        curVert->Tangent.z = 0.0f;
-
-                        // Bitangent points along the texture V direction.
-                        bitangentLength = g_MiddleTubeLength + ( PI * g_MeshRadius );
-                        curVert->Bitangent.x =  sinf ( angle ) * sinf ( endAngle ) * bitangentLength;
-                        curVert->Bitangent.y = -cosf ( angle ) * sinf ( endAngle ) * bitangentLength;
-                        curVert->Bitangent.z = cosf ( endAngle ) * bitangentLength;
 
                         if ( capNum == 0 )
                         {
@@ -1794,7 +2002,9 @@ void CreateModel()
     {
         // An inflated cube with seams.
 
-        // Each cube side is g_NumSegmentsLong in quads.
+        float numSegmentsPerEdge = g_NumSegmentsAround / 4;
+
+        // Each cube side is numSegmentsPerEdge in quads.
         //
         // Layout is this, with this ordering of verts/faces:
         //
@@ -1819,26 +2029,27 @@ void CreateModel()
         // UV map does not go all the way to the edge to allow space for teleport * edgefill.
 
         // 0,1,2,3
-        g_NumVerts = (g_NumSegmentsLong + 1) * (4 * g_NumSegmentsLong + 1);
+        g_NumVerts = (numSegmentsPerEdge + 1) * (4 * numSegmentsPerEdge + 1);
         // 4, 5
-        g_NumVerts += 2 * (g_NumSegmentsLong + 1) * (g_NumSegmentsLong + 1);
+        g_NumVerts += 2 * (numSegmentsPerEdge + 1) * (numSegmentsPerEdge + 1);
 
-        g_NumTris = g_NumSegmentsLong * g_NumSegmentsLong * 6 * 2;
+        g_NumTris = numSegmentsPerEdge * numSegmentsPerEdge * 6 * 2;
 
         g_FreeArrays = true;
         g_VertexData = new VertexBufferStruct[g_NumVerts];
+        g_VertexDataTemp = new VertexBufferStruct[g_NumVerts];
         g_IndexData = new UINT[g_NumTris * 3];
 
         VertexBufferStruct* curVert = g_VertexData;
         for ( int face = 0; face < 4; face++ )
         {
-            for ( int width = 0; width < g_NumSegmentsLong; width++ )
+            for ( int width = 0; width < numSegmentsPerEdge; width++ )
             {
-                for ( int height = 0; height < g_NumSegmentsLong + 1; height++ )
+                for ( int height = 0; height < numSegmentsPerEdge + 1; height++ )
                 {
                     VertexBufferStruct vert;
-                    float hfrac = (float)width / (float)g_NumSegmentsLong;
-                    float vfrac = (float)height / (float)g_NumSegmentsLong;
+                    float hfrac = (float)width / (float)numSegmentsPerEdge;
+                    float vfrac = (float)height / (float)numSegmentsPerEdge;
                     float hpos = -1.0f + 2.0f * hfrac;
                     float ypos = -1.0f + 2.0f * vfrac;
 
@@ -1848,26 +2059,18 @@ void CreateModel()
                     case 0: // -z
                         vert.Pos        = Vec3 (  hpos,  ypos, -1.0f );
                         vert.Normal     = Vec3 (  0.0f,  0.0f, -1.0f );
-                        vert.Tangent    = Vec3 (  1.0f,  0.0f,  0.0f );
-                        vert.Bitangent  = Vec3 (  0.0f, -1.0f,  0.0f );
                         break;
                     case 1: // +x
                         vert.Pos        = Vec3 (  1.0f,  ypos,  hpos );
                         vert.Normal     = Vec3 (  1.0f,  0.0f,  0.0f );
-                        vert.Tangent    = Vec3 (  0.0f,  0.0f,  1.0f );
-                        vert.Bitangent  = Vec3 (  0.0f, -1.0f,  0.0f );
                         break;
                     case 2: // +z
                         vert.Pos        = Vec3 ( -hpos,  ypos,  1.0f );
                         vert.Normal     = Vec3 (  0.0f,  0.0f,  1.0f );
-                        vert.Tangent    = Vec3 ( -1.0f,  0.0f,  0.0f );
-                        vert.Bitangent  = Vec3 (  0.0f, -1.0f,  0.0f );
                         break;
                     case 3: // -x
                         vert.Pos        = Vec3 ( -1.0f,  ypos, -hpos );
                         vert.Normal     = Vec3 ( -1.0f,  0.0f,  0.0f );
-                        vert.Tangent    = Vec3 (  0.0f,  0.0f, -1.0f );
-                        vert.Bitangent  = Vec3 (  0.0f, -1.0f,  0.0f );
                         break;
                     }
                     vert.TexCoord = Vec3 (
@@ -1883,15 +2086,13 @@ void CreateModel()
             }
         }
         // Final edge of face 3.
-        for ( int height = 0; height < g_NumSegmentsLong + 1; height++ )
+        for ( int height = 0; height < numSegmentsPerEdge + 1; height++ )
         {
             VertexBufferStruct vert;
-            float vfrac = (float)height / (float)g_NumSegmentsLong;
+            float vfrac = (float)height / (float)numSegmentsPerEdge;
             float ypos = -1.0f + 2.0f * vfrac;
             vert.Pos        = Vec3 ( -1.0f,  ypos, -1.0f );
             vert.Normal     = Vec3 ( -1.0f,  0.0f,  0.0f );
-            vert.Tangent    = Vec3 (  0.0f,  0.0f, -1.0f );
-            vert.Bitangent  = Vec3 (  0.0f, -1.0f,  0.0f );
 
             vert.TexCoord = Vec3 (
                 0.9f,
@@ -1906,13 +2107,13 @@ void CreateModel()
 
         for ( int face = 4; face <= 5; face++ )
         {
-            for ( int width = 0; width < g_NumSegmentsLong + 1; width++ )
+            for ( int width = 0; width < numSegmentsPerEdge + 1; width++ )
             {
-                for ( int height = 0; height < g_NumSegmentsLong + 1; height++ )
+                for ( int height = 0; height < numSegmentsPerEdge + 1; height++ )
                 {
                     VertexBufferStruct vert;
-                    float hfrac = (float)width / (float)g_NumSegmentsLong;
-                    float vfrac = (float)height / (float)g_NumSegmentsLong;
+                    float hfrac = (float)width / (float)numSegmentsPerEdge;
+                    float vfrac = (float)height / (float)numSegmentsPerEdge;
                     float hpos = -1.0f + 2.0f * hfrac;
                     float vpos = -1.0f + 2.0f * vfrac;
 
@@ -1922,8 +2123,6 @@ void CreateModel()
                     case 4: // +y
                         vert.Pos        = Vec3 ( -vpos,  1.0f,  hpos );
                         vert.Normal     = Vec3 (  0.0f,  1.0f,  0.0f );
-                        vert.Tangent    = Vec3 (  0.0f,  0.0f,  1.0f );
-                        vert.Bitangent  = Vec3 (  1.0f,  0.0f,  0.0f );
                         vert.TexCoord   = Vec3 ( 0.3f + 0.2f * hfrac,
                                                  0.3f - 0.2f * vfrac,
                                                  1.0f );
@@ -1931,8 +2130,6 @@ void CreateModel()
                     case 5: // -y
                         vert.Pos        = Vec3 (  vpos, -1.0f,  hpos );
                         vert.Normal     = Vec3 (  0.0f, -1.0f,  0.0f );
-                        vert.Tangent    = Vec3 (  0.0f,  0.0f,  1.0f );
-                        vert.Bitangent  = Vec3 ( -1.0f,  0.0f,  0.0f );
                         vert.TexCoord   = Vec3 ( 0.3f + 0.2f * hfrac,
                                                  0.9f - 0.2f * vfrac,
                                                  1.0f );
@@ -1953,13 +2150,13 @@ void CreateModel()
         // Faces 0, 1, 2, 3
         for ( int face = 0; face < 4; face++ )
         {
-            for ( int width = 0; width < g_NumSegmentsLong; width++ )
+            for ( int width = 0; width < numSegmentsPerEdge; width++ )
             {
-                for ( int height = 0; height < g_NumSegmentsLong; height++ )
+                for ( int height = 0; height < numSegmentsPerEdge; height++ )
                 {
-                    int v00 = ( face * g_NumSegmentsLong + width ) * ( g_NumSegmentsLong + 1 ) + height;
+                    int v00 = ( face * numSegmentsPerEdge + width ) * ( numSegmentsPerEdge + 1 ) + height;
                     int v01 = v00 + 1;
-                    int v10 = v00 + ( g_NumSegmentsLong + 1 );
+                    int v10 = v00 + ( numSegmentsPerEdge + 1 );
                     int v11 = v10 + 1;
 
                     *curInd++ = v00;
@@ -1973,14 +2170,14 @@ void CreateModel()
         }
 
         // Face 4
-        int indexOffset = ( ( 1 + 4 * g_NumSegmentsLong ) * ( g_NumSegmentsLong + 1 ) );
-        for ( int width = 0; width < g_NumSegmentsLong; width++ )
+        int indexOffset = ( ( 1 + 4 * numSegmentsPerEdge ) * ( numSegmentsPerEdge + 1 ) );
+        for ( int width = 0; width < numSegmentsPerEdge; width++ )
         {
-            for ( int height = 0; height < g_NumSegmentsLong; height++ )
+            for ( int height = 0; height < numSegmentsPerEdge; height++ )
             {
-                int v00 = indexOffset + height + ( width * ( g_NumSegmentsLong + 1 ) );
+                int v00 = indexOffset + height + ( width * ( numSegmentsPerEdge + 1 ) );
                 int v01 = v00 + 1;
-                int v10 = v00 + ( g_NumSegmentsLong + 1 );
+                int v10 = v00 + ( numSegmentsPerEdge + 1 );
                 int v11 = v10 + 1;
 
                 *curInd++ = v00;
@@ -1993,14 +2190,14 @@ void CreateModel()
         }
 
         // Face 5
-        indexOffset += ( g_NumSegmentsLong + 1 ) * ( g_NumSegmentsLong + 1 );
-        for ( int width = 0; width < g_NumSegmentsLong; width++ )
+        indexOffset += ( numSegmentsPerEdge + 1 ) * ( numSegmentsPerEdge + 1 );
+        for ( int width = 0; width < numSegmentsPerEdge; width++ )
         {
-            for ( int height = 0; height < g_NumSegmentsLong; height++ )
+            for ( int height = 0; height < numSegmentsPerEdge; height++ )
             {
-                int v00 = indexOffset + height + ( width * ( g_NumSegmentsLong + 1 ) );
+                int v00 = indexOffset + height + ( width * ( numSegmentsPerEdge + 1 ) );
                 int v01 = v00 + 1;
-                int v10 = v00 + ( g_NumSegmentsLong + 1 );
+                int v10 = v00 + ( numSegmentsPerEdge + 1 );
                 int v11 = v10 + 1;
 
                 *curInd++ = v00;
@@ -2014,8 +2211,7 @@ void CreateModel()
 
         ASSERT ( curInd == g_IndexData + 3 * g_NumTris );
 
-        // Now inflate and correct the normals, tangents and bitangents.
-        float tangentScale = 2.0f * PI / 0.8f; // 0.8 UV coords stretch all the way around the sphere of radius 1.0
+        // Now inflate from cube to sphere.
         for ( int i = 0; i < g_NumVerts; i++ )
         {
             curVert = &(g_VertexData[i]);
@@ -2023,25 +2219,10 @@ void CreateModel()
             Vec3 unitNormal = curVert->Pos.GetNormalise();
             curVert->Pos = unitNormal * g_MeshRadius;
             curVert->Normal = unitNormal * g_SurfaceThickness;
-
-            // Note - tangent and bitangent are only approximate - see note in GenerateTangentSpace()
-
-            Vec3 tangent = curVert->Bitangent.Cross ( unitNormal ).GetNormalise();
-            Vec3 bitangent = unitNormal.Cross ( tangent ).GetNormalise();
-            curVert->Tangent = tangent * tangentScale;
-            curVert->Bitangent = bitangent * tangentScale;
         }
     }
 
-
-    // Although the above tries to generate tangent spaces, it's tricky with some of the meshes.
-    // This will generate the tangent spaces directly from the mesh data.
-    g_GenerateTangentSpaceFromMesh_Current = g_GenerateTangentSpaceFromMesh;
-    if ( g_GenerateTangentSpaceFromMesh )
-    {
-        GenerateTangentSpace();
-    }
-
+    GenerateTangentSpace();
 
     g_NumSegmentsAround_Current = g_NumSegmentsAround;
     g_NumSegmentsLong_Current = g_NumSegmentsLong;
@@ -2092,6 +2273,9 @@ void CreateModel()
     {
         return;
     }
+
+    // Wireframe vertex buffer will be grown dynamically.
+    g_VertexBufferWireframe = nullptr;
 }
 
 struct TangentData
@@ -2455,25 +2639,31 @@ void CreateTextures()
     SAFE_RELEASE (g_TextureSurfaceFromObjectTemp0);
     SAFE_RELEASE (g_TextureSurfaceFromObjectTemp1);
     SAFE_RELEASE (g_TextureSurfaceFromObjectTemp2);
+    SAFE_RELEASE (g_TextureSurfaceFromObjectTemp3);
     SAFE_RELEASE (g_TextureSurfaceFromObject0);
     SAFE_RELEASE (g_TextureSurfaceFromObject1);
     SAFE_RELEASE (g_TextureSurfaceFromObject2);
+    SAFE_RELEASE (g_TextureSurfaceFromObject3);
     SAFE_RELEASE (g_TextureTeleportMap);
     SAFE_RELEASE (g_TextureEdgefillMap);
     SAFE_RELEASE (g_TextureSurfaceFromObjectTemp0SRV);
     SAFE_RELEASE (g_TextureSurfaceFromObjectTemp1SRV);
     SAFE_RELEASE (g_TextureSurfaceFromObjectTemp2SRV);
+    SAFE_RELEASE (g_TextureSurfaceFromObjectTemp3SRV);
     SAFE_RELEASE (g_TextureSurfaceFromObject0SRV);
     SAFE_RELEASE (g_TextureSurfaceFromObject1SRV);
     SAFE_RELEASE (g_TextureSurfaceFromObject2SRV);
+    SAFE_RELEASE (g_TextureSurfaceFromObject3SRV);
     SAFE_RELEASE (g_TextureTeleportMapSRV);
     SAFE_RELEASE (g_TextureEdgefillMapSRV);
     SAFE_RELEASE (g_TextureSurfaceFromObjectTemp0RTV);
     SAFE_RELEASE (g_TextureSurfaceFromObjectTemp1RTV);
     SAFE_RELEASE (g_TextureSurfaceFromObjectTemp2RTV);
+    SAFE_RELEASE (g_TextureSurfaceFromObjectTemp3RTV);
     SAFE_RELEASE (g_TextureSurfaceFromObject0RTV);
     SAFE_RELEASE (g_TextureSurfaceFromObject1RTV);
     SAFE_RELEASE (g_TextureSurfaceFromObject2RTV);
+    SAFE_RELEASE (g_TextureSurfaceFromObject3RTV);
 
     g_TextureSet_Current = g_TextureSet;
 
@@ -2497,9 +2687,11 @@ void CreateTextures()
     CreateRenderTarget ( g_SurfaceFromObjectTextureSize, g_SurfaceFromObjectTextureSize, DXGI_FORMAT_R32G32B32A32_FLOAT, &g_TextureSurfaceFromObjectTemp0, &g_TextureSurfaceFromObjectTemp0SRV, &g_TextureSurfaceFromObjectTemp0RTV );
     CreateRenderTarget ( g_SurfaceFromObjectTextureSize, g_SurfaceFromObjectTextureSize, DXGI_FORMAT_R32G32B32A32_FLOAT, &g_TextureSurfaceFromObjectTemp1, &g_TextureSurfaceFromObjectTemp1SRV, &g_TextureSurfaceFromObjectTemp1RTV );
     CreateRenderTarget ( g_SurfaceFromObjectTextureSize, g_SurfaceFromObjectTextureSize, DXGI_FORMAT_R32G32B32A32_FLOAT, &g_TextureSurfaceFromObjectTemp2, &g_TextureSurfaceFromObjectTemp2SRV, &g_TextureSurfaceFromObjectTemp2RTV );
+    CreateRenderTarget ( g_SurfaceFromObjectTextureSize, g_SurfaceFromObjectTextureSize, DXGI_FORMAT_R32G32B32A32_FLOAT, &g_TextureSurfaceFromObjectTemp3, &g_TextureSurfaceFromObjectTemp3SRV, &g_TextureSurfaceFromObjectTemp3RTV );
     CreateRenderTarget ( g_SurfaceFromObjectTextureSize, g_SurfaceFromObjectTextureSize, DXGI_FORMAT_R32G32B32A32_FLOAT, &g_TextureSurfaceFromObject0, &g_TextureSurfaceFromObject0SRV, &g_TextureSurfaceFromObject0RTV );
     CreateRenderTarget ( g_SurfaceFromObjectTextureSize, g_SurfaceFromObjectTextureSize, DXGI_FORMAT_R32G32B32A32_FLOAT, &g_TextureSurfaceFromObject1, &g_TextureSurfaceFromObject1SRV, &g_TextureSurfaceFromObject1RTV );
     CreateRenderTarget ( g_SurfaceFromObjectTextureSize, g_SurfaceFromObjectTextureSize, DXGI_FORMAT_R32G32B32A32_FLOAT, &g_TextureSurfaceFromObject2, &g_TextureSurfaceFromObject2SRV, &g_TextureSurfaceFromObject2RTV );
+    CreateRenderTarget ( g_SurfaceFromObjectTextureSize, g_SurfaceFromObjectTextureSize, DXGI_FORMAT_R32G32B32A32_FLOAT, &g_TextureSurfaceFromObject3, &g_TextureSurfaceFromObject3SRV, &g_TextureSurfaceFromObject3RTV );
 
     g_SurfaceFromObjectTextureSize_Current = g_SurfaceFromObjectTextureSize;
 }
@@ -2545,6 +2737,7 @@ void CreateTeleportEdgefill()
     g_pd3dDeviceContext->ClearRenderTargetView(g_TextureSurfaceFromObjectTemp0RTV, infVec.AsFloatPtr());
     g_pd3dDeviceContext->ClearRenderTargetView(g_TextureSurfaceFromObjectTemp1RTV, infVec.AsFloatPtr());
     g_pd3dDeviceContext->ClearRenderTargetView(g_TextureSurfaceFromObjectTemp2RTV, infVec.AsFloatPtr());
+    g_pd3dDeviceContext->ClearRenderTargetView(g_TextureSurfaceFromObjectTemp3RTV, infVec.AsFloatPtr());
 
     // 2. Do a render of the distortion pass to the SurfaceFromObject0
     // We just need to set up some non-bogus and non-inf numbers in the constant buffer. The values won't actually be used.
@@ -2552,11 +2745,11 @@ void CreateTeleportEdgefill()
     g_ConstantBufferData.cameraFromObjectMatrix = Mat44::identity;
     g_ConstantBufferData.objectFromCameraMatrix = Mat44::identity;
 
-    g_ConstantBufferData.sunDirInObject = Dir::zero;
+    g_ConstantBufferData.SunDirInObject = Dir::zero;
 
     for ( int boneNum = 0; boneNum < 4; boneNum++ )
     {
-        g_ConstantBufferData.boneFromObject[boneNum] = Mat44::identity;
+        g_ConstantBufferData.BoneFromObject[boneNum] = Mat44::identity;
     }
 
     RenderDistortionPass();
@@ -2600,6 +2793,7 @@ void CreateTeleportEdgefill()
             if ( val <= FLT_MAX )
             {
                 teleportEdgefillMap[y][x].surfaceWarpPresent = true;
+                teleportEdgefillMap[y][x].teleportDistance = -FLT_MAX;
             }
             srcSurfaceFromObject++;
         }
@@ -2742,7 +2936,8 @@ void CreateTeleportEdgefill()
                 VertexBufferStruct *vert1Dst = &(g_VertexData[v1Prox]);
                 VertexBufferStruct *vert2Dst = &(g_VertexData[v2Prox]);
 
-                int extraTexels = 2;
+                // To make sure the SDF has full range, make sure we fill a bit extra.
+                int extraTexels = 5;
                 int uStart = Clamp ( (int)floorf ( Min ( vert1Dst->TexCoord.x, vert2Dst->TexCoord.x ) * g_SurfaceFromObjectTextureSize ) - extraTexels, 0, g_SurfaceFromObjectTextureSize - 1 );
                 int vStart = Clamp ( (int)floorf ( Min ( vert1Dst->TexCoord.y, vert2Dst->TexCoord.y ) * g_SurfaceFromObjectTextureSize ) - extraTexels, 0, g_SurfaceFromObjectTextureSize - 1 );
                 int uEnd   = Clamp ( (int)floorf ( Max ( vert1Dst->TexCoord.x, vert2Dst->TexCoord.x ) * g_SurfaceFromObjectTextureSize ) + extraTexels, 0, g_SurfaceFromObjectTextureSize - 1 );
@@ -2761,17 +2956,48 @@ void CreateTeleportEdgefill()
                         Vec2 uv ( u, v );
 
                         // ...and where is that along the edge from vert1Dst to vert2Dst, as a fraction 0...1
-                        float lambda = vertDstUVDelta.Dot ( uv - vert1DstUV ) / vertDstUVDeltaLengthSq;
+                        Vec2 uvThisVert1Delta = uv - vert1DstUV;
+                        float lambda = vertDstUVDelta.Dot ( uvThisVert1Delta ) / vertDstUVDeltaLengthSq;
                         lambda = Clamp ( lambda, 0.0f, 1.0f );
 
                         // So now that's a warp to here.
+                        // Subtlety here is we are warping to the nearest point on the matching edge.
+                        // A better thing to do would be to warp to the equivalent place on the other side of the edge,
+                        // i.e. the starting point is not ON the edge, it's slightly past the edge,
+                        // so it would be good to teleport to the matching place on the mesh. However,
+                        // this is tricky to do, and there is no guarantee that the destination would not immediately need
+                        // another teleport. In practice this seems to work fine.
                         Vec3 teleportDest = vert1Src->TexCoord + ( vert2Src->TexCoord - vert1Src->TexCoord ) * lambda;
 
                         // ...and in texels it is this far away from the edge...
                         Vec2 nearestUV = vert1DstUV + ( vertDstUVDelta ) * lambda;
-                        float distance = ( uv - nearestUV ).GetLength();
+                        Vec2 vectorToNearestPoint = nearestUV - uv;
+                        float distance = vectorToNearestPoint.GetLength();
+                        if ( vectorToNearestPoint.x * vertDstUVDelta.y < vectorToNearestPoint.y * vertDstUVDelta.x ) // sign of the 2D cross-product.
+                        {
+                            // Inside the mesh.
+                            distance = -distance;
+                        }
+                        float curDistance = teleportEdgefillMap[vInt][uInt].teleportDistance;
 
-                        if ( teleportEdgefillMap[vInt][uInt].teleportDistance > distance )
+                        bool replace = false;
+                        if ( distance < 0.0f )
+                        {
+                            replace = distance > curDistance;
+                            if ( distance < -2.0f / (float)g_SurfaceFromObjectTextureSize )
+                            {
+                                // This is way inside the mesh. For easier visualisation,
+                                // use the current UV, not the teleport destination one.
+                                teleportDest.x = u;
+                                teleportDest.y = v;
+                            }
+                        }
+                        else
+                        {
+                            replace = distance < curDistance;
+                        }
+
+                        if ( replace )
                         {
                             teleportEdgefillMap[vInt][uInt].teleportDistance = distance;
                             teleportEdgefillMap[vInt][uInt].teleportUV = Vec2 ( teleportDest.x, teleportDest.y );
@@ -2824,8 +3050,13 @@ void CreateTeleportEdgefill()
                         float v = ( (float)y + 0.5f ) / (float)g_SurfaceFromObjectTextureSize;
                         Vec2 uvCenter ( u, v );
 
-                        float edgefillTestDist = center->edgefillDistance + dist11;
                         float teleportTestDist = center->teleportDistance + dist11;
+                        if ( center->teleportDistance < 0.0f )
+                        {
+                            teleportTestDist = center->teleportDistance - dist11;
+                        }
+
+                        float edgefillTestDist = center->edgefillDistance + dist11;
                         if ( center->surfaceWarpPresent )
                         {
                             edgefillTestDist = dist11;
@@ -2857,13 +3088,26 @@ void CreateTeleportEdgefill()
                                     }
                                 }
 
-                                if ( !neigh->surfaceWarpPresent && ( neigh->teleportDistance > teleportTestDist ) )
+                                if ( teleportTestDist > 0.0f )
                                 {
-                                    if ( center->teleportDistance < FLT_MAX )
+                                    if ( neigh->teleportDistance > teleportTestDist )
+                                    {
+                                        if ( center->teleportDistance < FLT_MAX )
+                                        {
+                                            // Copy teleport from here.
+                                            neigh->teleportUV = center->teleportUV;
+                                            neigh->teleportDistance = center->teleportDistance + distDelta[neiNum];
+                                            moreToDo = true;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    if ( ( neigh->teleportDistance == FLT_MAX ) || ( neigh->teleportDistance < teleportTestDist ) )
                                     {
                                         // Copy teleport from here.
                                         neigh->teleportUV = center->teleportUV;
-                                        neigh->teleportDistance = center->teleportDistance + distDelta[neiNum];
+                                        neigh->teleportDistance = center->teleportDistance - distDelta[neiNum];
                                         moreToDo = true;
                                     }
                                 }
@@ -2877,7 +3121,7 @@ void CreateTeleportEdgefill()
 
     // 8. Bake teleport into a texture:
 
-    // For now, just use a 3-float texture. It could be compressed down to 2*UNORM16
+    // For now, just use a 3-float texture. It could be compressed down to 2*UNORM16 and a separate 8-bit SDF biased so that 128=0.0.
     Vec3 *finalTeleportMap = new Vec3 [g_SurfaceFromObjectTextureSize * g_SurfaceFromObjectTextureSize];
     Vec3 *dst = finalTeleportMap;
     for ( int y = 0; y < g_SurfaceFromObjectTextureSize; y++ )
@@ -2888,14 +3132,22 @@ void CreateTeleportEdgefill()
             float v = ( (float)y + 0.5f ) / (float)g_SurfaceFromObjectTextureSize;
             Vec2 uvCenter ( u, v );
 
-            // The teleport data is POINT sampled (because it has discontinuitiies, so filtering won't work)
-            // and if the z value is >0 then it will be used.
+            // The teleport data is first read with bilinear sampling,
+            // but only the SDF in the Z value is read.
+            // If the filtered Z value is >0 then it is re-read with POINT
+            // sampling (because there are discontinuities) and the XY values used as
+            // the destination UV coordinates.
+            //
+            // It may be interesting to use multiple sets of teleport channels,
+            // splitting the discontinuities across them, so that the UV coordinates
+            // can be read with filtering, improving their precision, and requiring fewer
+            // iterations around teleports. At the same time i would be interesting to
+            // use a multi-channel SDF so that sharp corners are handled perfectly,
+            // rather than being rounded off.
+
             float dist = teleportEdgefillMap[y][x].teleportDistance;
-            if ( teleportEdgefillMap[y][x].surfaceWarpPresent )
-            {
-                *dst++ = Vec3 ( u, v, 0.0f );
-            }
-            else if ( dist == FLT_MAX )
+            dist *= 50.0f; // doesn't change the SDF==0 point, but makes visual debugging easier.
+            if ( dist == FLT_MAX )
             {
                 *dst++ = Vec3 ( 0.0f, 0.0f, 1000.0f );
             }
@@ -2999,6 +3251,7 @@ void CreateShaders()
     g_Pipeline[PipelineState::Pipeline_Main].filename = L"PipelineMain.hlsl";
     g_Pipeline[PipelineState::Pipeline_Deform].filename = L"PipelineDeform.hlsl";
     g_Pipeline[PipelineState::Pipeline_Edgefill].filename = L"PipelineEdgefill.hlsl";
+    g_Pipeline[PipelineState::Pipeline_Wireframe].filename = L"PipelineWireframe.hlsl";
 
     for ( int pipelineNum = 0; pipelineNum < PipelineState::Pipeline_COUNT; pipelineNum++)
     {
@@ -3011,12 +3264,14 @@ void CreateShaders()
         if (D3DCompileFromFile(pipeline->filename, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "vs_main", "vs_5_0", 0, 0, &vertexShaderBlob, &errorMessages) != S_OK)
         {
             char const *errors = (char const *)errorMessages->GetBufferPointer();
+            (void)errors;
             ASSERT ( false );
             return;
         }
         if (D3DCompileFromFile(pipeline->filename, nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "ps_main", "ps_5_0", 0, 0, &pixelShaderBlob, &errorMessages) != S_OK)
         {
             char const *errors = (char const *)errorMessages->GetBufferPointer();
+            (void)errors;
             ASSERT ( false );
             return;
         }
@@ -3032,9 +3287,19 @@ void CreateShaders()
             return;
         }
 
-        if (g_pd3dDevice->CreateInputLayout(g_VertexInputDesc, ARRAYSIZE(g_VertexInputDesc), vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &(pipeline->inputLayout)) != S_OK)
+        if ( pipelineNum == PipelineState::Pipeline_Wireframe )
         {
-            return;
+            if (g_pd3dDevice->CreateInputLayout(g_VertexInputWireframeDesc, ARRAYSIZE(g_VertexInputWireframeDesc), vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &(pipeline->inputLayout)) != S_OK)
+            {
+                return;
+            }
+        }
+        else
+        {
+            if (g_pd3dDevice->CreateInputLayout(g_VertexInputDesc, ARRAYSIZE(g_VertexInputDesc), vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &(pipeline->inputLayout)) != S_OK)
+            {
+                return;
+            }
         }
     }
 }

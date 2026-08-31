@@ -54,11 +54,11 @@ void Animate ( inout float4 posObject,
 {
 	// Animation. This is completely standard 4-bone skinning, except without bone indices.
 	float4x4 boneFromObjectTotal;
-	boneFromObjectTotal  = boneFromObject[0] * boneWeights.x;
-	boneFromObjectTotal += boneFromObject[1] * boneWeights.y;
-	boneFromObjectTotal += boneFromObject[2] * boneWeights.z;
-	boneFromObjectTotal += boneFromObject[3] * boneWeights.w;
-
+	boneFromObjectTotal  = BoneFromObject[0] * boneWeights.x;
+	boneFromObjectTotal += BoneFromObject[1] * boneWeights.y;
+	boneFromObjectTotal += BoneFromObject[2] * boneWeights.z;
+	boneFromObjectTotal += BoneFromObject[3] * boneWeights.w;
+	
 	float4 posObject2       = mul (boneFromObjectTotal, posObject      );
 	float4 normObject2      = mul (boneFromObjectTotal, normObject     );
 	float4 tangentObject2   = mul (boneFromObjectTotal, tangentObject  );

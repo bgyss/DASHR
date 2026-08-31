@@ -6,9 +6,10 @@ struct VS_OUTPUT
 {
 	float4 Pos : SV_POSITION;
 
-	float4 SurfaceFromObject0 : TEXCOORD1;
-	float4 SurfaceFromObject1 : TEXCOORD2;
-	float4 SurfaceFromObject2 : TEXCOORD3;
+	float3 SurfaceFromObject0 : TEXCOORD0;
+	float3 SurfaceFromObject1 : TEXCOORD1;
+	float3 SurfaceFromObject2 : TEXCOORD2;
+    float3 SurfaceFromObject3 : TEXCOORD3;
 };
 
 VS_OUTPUT vs_main( VS_INPUT In )
@@ -50,43 +51,67 @@ VS_OUTPUT vs_main( VS_INPUT In )
 	objectFromSurface[2][3] = 0.0f;
 	objectFromSurface[3][3] = 1.0f;
 
-	// So then if we transform the vertex's Surface Space coordinate...
-	// (note the Z coordinate is 0.5, which is the middle of the heightfield)
 	float4 surfacePos = float4 ( In.TexCoord.x, In.TexCoord.y, 0.5f, 1.0f );
-	float4 resultObjectPos = mul ( objectFromSurface, surfacePos );
-	// ...we want the result to be the vertex's object-space position.
-	float4 desiredObjectPos = posObject;
-	float4 posOffset = desiredObjectPos - resultObjectPos;
-	objectFromSurface[0][3] = posOffset.x;
-	objectFromSurface[1][3] = posOffset.y;
-	objectFromSurface[2][3] = posOffset.z;
-	objectFromSurface[3][3] = 1.0f;
-
-	// ...but actually what we want is the opposite - to get from "real world" Object Space,
-	// into Surface Space (u,v,height) so we can sample the heightfield.
-	float4x4 surfaceFromObject = GetInverse4x4 ( objectFromSurface );
-
-	Out.SurfaceFromObject0 = float4 ( surfaceFromObject._m00, surfaceFromObject._m01, surfaceFromObject._m02, surfaceFromObject._m03 );
-	Out.SurfaceFromObject1 = float4 ( surfaceFromObject._m10, surfaceFromObject._m11, surfaceFromObject._m12, surfaceFromObject._m13 );
-	Out.SurfaceFromObject2 = float4 ( surfaceFromObject._m20, surfaceFromObject._m21, surfaceFromObject._m22, surfaceFromObject._m23 );
+	
+    if (DistortionMode == 0)
+    {
+		// So then if we transform the vertex's Surface Space coordinate...
+		// (note the Z coordinate is 0.5, which is the middle of the heightfield)
+		float4 resultObjectPos = mul ( objectFromSurface, surfacePos );
+		// ...we want the result to be the vertex's object-space position.
+		float4 desiredObjectPos = posObject;
+		float4 posOffset = desiredObjectPos - resultObjectPos;
+		objectFromSurface[0][3] = posOffset.x;
+		objectFromSurface[1][3] = posOffset.y;
+		objectFromSurface[2][3] = posOffset.z;
+		objectFromSurface[3][3] = 1.0f;
+		
+		// ...but actually what we want is the opposite - to get from "real world" Object Space,
+		// into Surface Space (u,v,height) so we can sample the heightfield.
+        float4x4 surfaceFromObject = GetInverse4x4(objectFromSurface);
+        Out.SurfaceFromObject0 = float3(surfaceFromObject._m00, surfaceFromObject._m10, surfaceFromObject._m20);
+        Out.SurfaceFromObject1 = float3(surfaceFromObject._m01, surfaceFromObject._m11, surfaceFromObject._m21);
+        Out.SurfaceFromObject2 = float3(surfaceFromObject._m02, surfaceFromObject._m12, surfaceFromObject._m22);
+        Out.SurfaceFromObject3 = float3(surfaceFromObject._m03, surfaceFromObject._m13, surfaceFromObject._m23);
+    }
+    else // DistortionMode == 1
+    {
+		// This mode tries to store each vector as a component that can be interpolated well,
+		// and has a more independent "meaning".
+		
+		// We already know what surfacePos is - it's the Out.Pos we're going to write to!
+		// So we don't need to store that.
+		
+		// We store the inverse basis vectors WITHOUT the offset.
+		// These should interpolate pretty well since they are physical (ish) vectors.
+		// TODO: a cheaper inverse function.
+        float4x4 surfaceFromObject = GetInverse4x4(objectFromSurface);
+        Out.SurfaceFromObject0 = float3(surfaceFromObject._m00, surfaceFromObject._m10, surfaceFromObject._m20);
+        Out.SurfaceFromObject1 = float3(surfaceFromObject._m01, surfaceFromObject._m11, surfaceFromObject._m21);
+        Out.SurfaceFromObject2 = float3(surfaceFromObject._m02, surfaceFromObject._m12, surfaceFromObject._m22);
+		
+		// And we store the ideal posObject raw. This should interpolate pretty well!
+		Out.SurfaceFromObject3 = posObject.xyz;
+    }
 
 	// The "position" output is the coordinates in surface space,
 	// i.e. the UV coordinates, remapped from [0,1] to [-1,+1]
-	Out.Pos.x = (In.TexCoord.x - 0.5f) * 2.0f;
-	Out.Pos.y = (0.5f - In.TexCoord.y) * 2.0f;
-	Out.Pos.z = 1.0f;
-	Out.Pos.w = 1.0f;
+    Out.Pos.x = (In.TexCoord.x - 0.5f) * 2.0f;
+    Out.Pos.y = (0.5f - In.TexCoord.y) * 2.0f;
+    Out.Pos.z = 1.0f;
+    Out.Pos.w = 1.0f;
 
-	return Out;
+    return Out;
 }
 
 SamplerState smp;
 
 struct PS_OUTPUT
 {
-	float4 Rt0 : COLOR0;
-	float4 Rt1 : COLOR1;
-	float4 Rt2 : COLOR2;
+	float3 Rt0 : COLOR0;
+	float3 Rt1 : COLOR1;
+	float3 Rt2 : COLOR2;
+    float3 Rt3 : COLOR3;
 };
 
 PS_OUTPUT ps_main( VS_OUTPUT In ) : SV_TARGET
@@ -95,6 +120,7 @@ PS_OUTPUT ps_main( VS_OUTPUT In ) : SV_TARGET
 	result.Rt0 = In.SurfaceFromObject0;
 	result.Rt1 = In.SurfaceFromObject1;
 	result.Rt2 = In.SurfaceFromObject2;
+    result.Rt3 = In.SurfaceFromObject3;
 
 	return result;
 }

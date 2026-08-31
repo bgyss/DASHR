@@ -8,24 +8,35 @@ cbuffer ConstantBufferStruct
 	row_major float4x4 cameraFromObjectMatrix;
 	row_major float4x4 objectFromCameraMatrix;
 
-	float heightScale;
-	float heightOffset;
-	float stepSize;
-	float stepScale;
+	float HeightScale;
+	float HeightOffset;
+	float StepSize;
+	float StepScale;
 
-	row_major float4x4 boneFromObject[4];
+	row_major float4x4 BoneFromObject[4];
 
-	float3 sunDirInObject;
-	float surfaceFromObjectTextureSize;
+	float3 SunDirInObject;
+	float SurfaceFromObjectTextureSize;
 
-	int DebugMode;
-	int LightingMode;
-	float IndirectLighting;
-	float heightNormalsScale;
+    int DebugMode;
+    int LightingMode;
+    int DistortionMode;
+    int MaxSteps;
+	
+	float DampingFactor1;
+	float DampingFactor2;
+	float DampingFactor3;
+	float HeightExtraMeshExtrude;
 
-	float deltaUVStep;
-	float shadowAcneScaler;
-	int padding2;
-	int padding3;
+    float DeltaUVStep;
+    float ShadowAcneScaler;
+    float IndirectLighting;
+    float HeightNormalsScale;
+
+	int DebugIterationsAfterTeleport;
+	int Padding1;
+	int Padding2;
+	int Padding3;
+
 };
 
