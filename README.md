@@ -1,7 +1,7 @@
 # DASHR
 DASHR - Dynamically Animated Skinned Heightfield Rendering
 
-Tom Forsyth, 2026 August 30th
+Tom Forsyth, v0.3 2026 September 27th
 
 
 Download everything!
