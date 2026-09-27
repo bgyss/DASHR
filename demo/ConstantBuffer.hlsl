@@ -23,9 +23,9 @@ cbuffer ConstantBufferStruct
     int DistortionMode;
     int MaxSteps;
 	
-	float DampingFactor1;
-	float DampingFactor2;
-	float DampingFactor3;
+	float DebugDampingFactor1;
+	float DebugDampingFactor2;
+	float DebugDampingFactor3;
 	float HeightExtraMeshExtrude;
 
     float DeltaUVStep;

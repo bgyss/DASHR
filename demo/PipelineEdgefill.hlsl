@@ -98,7 +98,7 @@ PS_OUTPUT ps_main( VS_OUTPUT In ) : SV_TARGET
         float4x4 surfaceFromObjects[5];
         float3 objectPos[5];
 		float2 edgefillSrcUv[5];
-        float uVoffset = 1.0f / SurfaceFromObjectTextureSize;
+        float uVoffset = 1.0f / (float)SurfaceFromObjectTextureSize;
         edgefillUv[0] = float2(In.TexCoord.x,            In.TexCoord.y           );
         edgefillUv[1] = float2(In.TexCoord.x + uVoffset, In.TexCoord.y           );
         edgefillUv[2] = float2(In.TexCoord.x - uVoffset, In.TexCoord.y           );

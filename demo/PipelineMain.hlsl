@@ -131,13 +131,18 @@ float3 GetPosInSurfaceFromDistortionTexture ( inout float rayStepFactor,
 										      float2 texCoords )
 {
 	rayStepFactor = 1.0f;
+	
+	// DebugDampingFactor1 is usually 1.0f
+	// DebugDampingFactor2 is usually 0.0f
+	// DebugDampingFactor3 is usually 1.5f
+	//		Factor3 is the only one chosen heuristically. Anything between 1.0 and 2.0 seems to work well.
 		
 	float2 animDistortion;
     float4x4 surfaceFromObject = ReadSurfaceFromObject ( animDistortion, texCoords );
 	float2 scaleFactor;
 	float2 rayStepFactor2D;
 	bool identityScaling = true;
-	if ( animDistortion.x < DampingFactor2 )
+	if ( animDistortion.x < DebugDampingFactor2 )
     {
 		// Highly compressed by animation and close to or causing self-intersection.
 		// We want TraceRay to step very tiny distances in object space
@@ -146,11 +151,11 @@ float3 GetPosInSurfaceFromDistortionTexture ( inout float rayStepFactor,
 		scaleFactor.x = 1.0f;
 		rayStepFactor2D.x = 0.01f;
     }
-	else if ( animDistortion.x > DampingFactor3 )
+	else if ( animDistortion.x > DebugDampingFactor3 )
     {
 		// Animation has caused a lot of stretching.
 		// We need to damp the motion in surface space to prevent oscillation.
-		scaleFactor.x = 1.0f / ( DampingFactor1 * animDistortion.x );
+		scaleFactor.x = 1.0f / ( DebugDampingFactor1 * animDistortion.x );
 		identityScaling = false;
 		// ...and also step slower in object space.
 		rayStepFactor2D.x = scaleFactor.x;
@@ -163,14 +168,14 @@ float3 GetPosInSurfaceFromDistortionTexture ( inout float rayStepFactor,
     }
 	
 	// ...and the same with the V channel.
-	if ( animDistortion.y < DampingFactor2 )
+	if ( animDistortion.y < DebugDampingFactor2 )
     {
 		scaleFactor.y = 1.0f;
 		rayStepFactor2D.y = 0.01f;
     }
-	else if ( animDistortion.y > DampingFactor3 )
+	else if ( animDistortion.y > DebugDampingFactor3 )
     {
-		scaleFactor.y = 1.0f / ( DampingFactor1 * animDistortion.y );
+		scaleFactor.y = 1.0f / ( DebugDampingFactor1 * animDistortion.y );
 		identityScaling = false;
 		rayStepFactor2D.y = scaleFactor.y;
     }

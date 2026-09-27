@@ -188,8 +188,8 @@ VertexBufferStruct* g_VertexDataTemp = nullptr;
 UINT* g_IndexData = nullptr;
 bool g_FreeArrays = false;
 
-int g_NumSegmentsAround = 16;
-int g_NumSegmentsLong = 16;
+int g_NumSegmentsAround = 8;
+int g_NumSegmentsLong = 8;
 float g_MiddleTubeLength = 4.0f;
 float g_MeshRadius = 1.0f;
 float g_SurfaceThickness = 1.0f;
@@ -239,9 +239,9 @@ struct ConstantBufferStruct
     int DistortionMode;
     int MaxSteps;
 
-	float DampingFactor1;
-	float DampingFactor2;
-	float DampingFactor3;
+	float DebugDampingFactor1;
+	float DebugDampingFactor2;
+	float DebugDampingFactor3;
     float HeightExtraMeshExtrude;
 
     float DeltaUVStep;
@@ -256,13 +256,29 @@ struct ConstantBufferStruct
 
 } g_ConstantBufferData = {};
 
+
+enum MeshTypes
+{
+    MeshType_Tube,
+    MeshType_Cube,
+    MeshType_TubePinched,
+    MeshType_CubePinched,
+};
+
+const char* MeshNames[] = {
+    "Tube",
+    "Inflated cube",
+    "Tube with pinched ends",
+    "Inflated cube with pinched corners",
+};
+
 const char* DebugModeNames[] = {
     "Off",
-    "Show vertex UVs",      // using vertex UVs directly.
-    "Show first iter UVs",  // using the UV calculated at the first iteration.
-    "Step counts",          // green = primary step count. Red = shadow step count. Blue = number of teleports.
-    "UV grid",              // UV values of primary hit.
-    "Anim Distortion",           // a measure of the animation distortion.
+    "Show heightfield with vertex UVs", // using vertex UVs directly.
+    "Show albedo with vertex UVs",      // using vertex UVs directly.
+    "Step counts",                      // green = primary step count. Red = shadow step count. Blue = number of teleports.
+    "UV grid",                          // UV values of primary hit.
+    "Anim Distortion",                  // a measure of the animation distortion.
 };
 
 const char* LightingModeNames[] = {
@@ -484,16 +500,16 @@ int main(int, char**)
     g_ConstantBufferData.HeightScale = 1.0f;
     g_ConstantBufferData.HeightOffset = 0.0f;
     g_ConstantBufferData.HeightNormalsScale = 1.5f;
-    g_ConstantBufferData.HeightExtraMeshExtrude = 0.0f;
+    g_ConstantBufferData.HeightExtraMeshExtrude = 0.25f; // the default tessellation of 8 segments needs a little extra space or the rasteriser misses some pixels!
 
     g_ConstantBufferData.DebugMode = 0;
     g_ConstantBufferData.LightingMode = 4;
     g_ConstantBufferData.DistortionMode = 1;
     g_ConstantBufferData.DebugIterationsAfterTeleport = 0;
     g_ConstantBufferData.MaxSteps = -1;
-    g_ConstantBufferData.DampingFactor1 = 1.0f;
-    g_ConstantBufferData.DampingFactor2 = 0.0f;
-    g_ConstantBufferData.DampingFactor3 = 1.5f;
+    g_ConstantBufferData.DebugDampingFactor1 = 1.0f;
+    g_ConstantBufferData.DebugDampingFactor2 = 0.0f;
+    g_ConstantBufferData.DebugDampingFactor3 = 1.5f;
     g_ConstantBufferData.IndirectLighting = 0.2f;
 
     g_AlphaMode = 0;
@@ -552,6 +568,7 @@ int main(int, char**)
         g_ConstantBufferData.DeltaUVStep = 1.0f / Min ( 512.0f, (float)desc.Width );
 
         g_SurfaceFromObjectTextureSize = 1 << g_SurfaceFromObjectTextureSizePow2;
+        g_ConstantBufferData.SurfaceFromObjectTextureSize = (float)g_SurfaceFromObjectTextureSize;
         if ( ( g_TextureSet != g_TextureSet_Current ) ||
              ( g_SurfaceFromObjectTextureSize != g_SurfaceFromObjectTextureSize_Current ) )
         {
@@ -624,8 +641,8 @@ int main(int, char**)
 
         switch ( g_MeshNumber )
         {
-        case 1:
-        case 2:
+        case MeshType_Cube:
+        case MeshType_CubePinched:
         {
             // Bone 0 is the "base" - it doesn't move.
             // Bone 1 flexes the +ve vertices along the X axis.
@@ -646,7 +663,8 @@ int main(int, char**)
             }
         }
         break;
-        case 0:
+        case MeshType_Tube:
+        case MeshType_TubePinched:
         {
 #if 1
             // Bones are sequential and each offset along the previous one.
@@ -848,6 +866,8 @@ int main(int, char**)
                 // Different alpha modes don't do much yet.
                 //ImGui::SliderInt("Tranparency mode", &g_AlphaMode, 0, ARRAYSIZE(AlphaModeNames) - 1, AlphaModeNames[g_AlphaMode]);
                 ImGui::SliderInt("Wireframe mode", &g_WireframeMode, 0, ARRAYSIZE(WireframeModeNames) - 1, WireframeModeNames[g_WireframeMode]);
+                ImGui::SliderFloat("Wireframe normals", &g_WireframeNormalScale, 0.0f, 1.0f);
+                ImGui::SliderFloat("Wireframe tangents", &g_WireframeTangentScale, 0.0f, 1.0f);
 
                 ImGui::SeparatorText("ANIMATION:");
                 ImGui::Checkbox("Anim paused", &g_boneAnimPaused);
@@ -858,17 +878,14 @@ int main(int, char**)
                 ImGui::SliderFloat("Sun anim elevation", &g_sunAnimHeight, 0.0f, 1.0f);
 
                 ImGui::SeparatorText("MESH and TEXTURE (changes will be slow):");
-                ImGui::SliderInt("Texture Set", &g_TextureSet, 0, 10);
-                ImGui::SliderInt("Mesh", &g_MeshNumber, 0, 10);
+                ImGui::SliderInt("Texture Set", &g_TextureSet, 0, 2);
+                ImGui::SliderInt("Mesh", &g_MeshNumber, 0, ARRAYSIZE(MeshNames) - 1, MeshNames[g_MeshNumber]);
                 ImGui::SliderInt("Num Segments Long", &g_NumSegmentsLong, 4, 64);
                 ImGui::SliderInt("Num Segments Around", &g_NumSegmentsAround, 4, 32);
                 ImGui::SliderFloat("Mesh length", &g_MiddleTubeLength, 0.1f, 10.0f);
                 ImGui::SliderFloat("Mesh radius", &g_MeshRadius, 0.1f, 10.0f);
                 ImGui::SliderFloat("Surface thickness", &g_SurfaceThickness, 0.1f, 10.0f);
                 ImGui::SliderInt("SurfaceFromObject size pow2", &g_SurfaceFromObjectTextureSizePow2, 4, 12);
-                ImGui::Checkbox("Floodfill teleport and edgefill", &g_FloodFillTeleportEdgefill);
-                ImGui::SliderFloat("Wireframe normals", &g_WireframeNormalScale, 0.0f, 1.0f);
-                ImGui::SliderFloat("Wireframe tangents", &g_WireframeTangentScale, 0.0f, 1.0f);
 
                 ImGui::SeparatorText("RAYMARCHER:");
                 ImGui::SliderFloat("Step size", &g_ConstantBufferData.StepSize, 0.001f, 0.05f);
@@ -878,9 +895,9 @@ int main(int, char**)
                 ImGui::SliderFloat("Mesh extra extrusion", &g_ConstantBufferData.HeightExtraMeshExtrude, 0.0f, 1.0f);
                 ImGui::SliderInt("Steps after teleport", &g_ConstantBufferData.DebugIterationsAfterTeleport, 0, 10 );
                 ImGui::SliderInt("Max steps (-1 = off)", &g_ConstantBufferData.MaxSteps, -1, 100 );
-                ImGui::SliderFloat("Damping factor 1", &g_ConstantBufferData.DampingFactor1, 0.0f, 5.0f );
-                ImGui::SliderFloat("Damping factor 2", &g_ConstantBufferData.DampingFactor2, -10.0f, 1.0f );
-                ImGui::SliderFloat("Damping factor 3", &g_ConstantBufferData.DampingFactor3, 1.0f, 5.0f );
+                ImGui::SliderFloat("Damping factor 1", &g_ConstantBufferData.DebugDampingFactor1, 0.0f, 5.0f );
+                ImGui::SliderFloat("Damping factor 2", &g_ConstantBufferData.DebugDampingFactor2, -10.0f, 1.0f );
+                ImGui::SliderFloat("Damping factor 3", &g_ConstantBufferData.DebugDampingFactor3, 1.0f, 5.0f );
 
                 ImGui::SeparatorText("LIGHTING AND SHADOWS:");
                 ImGui::SliderFloat("Indirect lighting", &g_ConstantBufferData.IndirectLighting, 0.0f, 1.0f);
@@ -891,16 +908,17 @@ int main(int, char**)
                 ImGui::SeparatorText("WINDOWS:");
                 ImGui::Checkbox("Show Teleport Map", &show_debug_window_teleport);
                 ImGui::Checkbox("Show Edgefill Map", &show_debug_window_edgefill);
+                ImGui::Checkbox("Floodfill teleport and edgefill", &g_FloodFillTeleportEdgefill);
                 ImGui::Checkbox("Show SurfaceFromObject Map", &show_debug_window_surface_from_object);
                 ImGui::Checkbox("Intro/controls Window", &g_showIntroWindow);
-                ImGui::Checkbox("Dear ImGui Demo Window", &show_demo_window);
+                //ImGui::Checkbox("Dear ImGui Demo Window", &show_demo_window);
 
                 ImGui::SeparatorText("MISC CONTROLS:");
                 ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
                 ImGui::Checkbox("Vsync", &g_VsyncEnabled);
-                ImGui::Checkbox("Paused", &g_GamePaused);
-                ImGui::SliderFloat("Near clip plane", &g_nearClipPlane, 0.001f, 1.0f);
-                ImGui::SliderFloat("Simulation time step (secs)", &g_SimulationTimeStepSeconds, 0.01f, 1.0f);
+                //ImGui::Checkbox("Paused", &g_GamePaused);
+                //ImGui::SliderFloat("Near clip plane", &g_nearClipPlane, 0.001f, 1.0f);
+                //ImGui::SliderFloat("Simulation time step (secs)", &g_SimulationTimeStepSeconds, 0.01f, 1.0f);
                 ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
 
                 ImGui::End();
@@ -1612,98 +1630,18 @@ void CreateModel()
     g_MeshRadius_Current = g_MeshRadius;
     g_SurfaceThickness_Current = g_SurfaceThickness;
 
-#if 0 // this mesh doesn't work any more. TODO - fix it!
-    if ( g_MeshNumber == 2 )
+    if ( ( g_MeshNumber == MeshType_Tube ) ||
+         ( g_MeshNumber == MeshType_TubePinched ) )
     {
-        // Just a simple double-sided square.
-        // NOTE - this was an early experiment and doesn't work correctly now.
+        bool pinchedTube = ( g_MeshNumber == MeshType_TubePinched );
 
-        int const c_NumVerts = 3*3*2;
-        int const c_NumTris = 2*((2*2)*2 + (2)*4);
-
-        g_NumVerts = c_NumVerts;
-        g_NumTris = c_NumTris;
-        g_FreeArrays = false;
-
-        VertexBufferStruct vertexData[c_NumVerts] = 
-        {
-            // 3x3 array, 2 layers thick.
-
-            //    position             texture coord          bone weights (must sum to 1.0)         normal, tangent and bitangent are computed at runtime.
-            { { -1.0f,  0.0f, -1.0f }, { 0.0f, 0.0f,  1.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } },
-            { {  0.0f,  0.0f, -1.0f }, { 0.5f, 0.0f,  1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f } },
-            { {  1.0f,  0.0f, -1.0f }, { 1.0f, 0.0f,  1.0f }, { 0.0f, 1.0f, 0.0f, 0.0f } },
-            { { -1.0f,  0.0f,  0.0f }, { 0.0f, 0.5f,  1.0f }, { 0.0f, 0.0f, 0.5f, 0.5f } },
-            { {  0.0f,  0.0f,  0.0f }, { 0.5f, 0.5f,  1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f } },
-            { {  1.0f,  0.0f,  0.0f }, { 1.0f, 0.5f,  1.0f }, { 0.0f, 1.0f, 0.0f, 0.0f } },
-            { { -1.0f,  0.0f,  1.0f }, { 0.0f, 1.0f,  1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f } },
-            { {  0.0f,  0.0f,  1.0f }, { 0.5f, 1.0f,  1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f } },
-            { {  1.0f,  0.0f,  1.0f }, { 1.0f, 1.0f,  1.0f }, { 0.0f, 1.0f, 0.0f, 0.0f } },
-
-            { { -1.0f,  0.0f, -1.0f }, { 0.0f, 0.0f, -1.0f }, { 0.0f, 0.0f, 0.0f, 1.0f } },
-            { {  0.0f,  0.0f, -1.0f }, { 0.5f, 0.0f, -1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f } },
-            { {  1.0f,  0.0f, -1.0f }, { 1.0f, 0.0f, -1.0f }, { 0.0f, 1.0f, 0.0f, 0.0f } },
-            { { -1.0f,  0.0f,  0.0f }, { 0.0f, 0.5f, -1.0f }, { 0.0f, 0.0f, 0.5f, 0.5f } },
-            { {  0.0f,  0.0f,  0.0f }, { 0.5f, 0.5f, -1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f } },
-            { {  1.0f,  0.0f,  0.0f }, { 1.0f, 0.5f, -1.0f }, { 0.0f, 1.0f, 0.0f, 0.0f } },
-            { { -1.0f,  0.0f,  1.0f }, { 0.0f, 1.0f, -1.0f }, { 0.0f, 0.0f, 1.0f, 0.0f } },
-            { {  0.0f,  0.0f,  1.0f }, { 0.5f, 1.0f, -1.0f }, { 1.0f, 0.0f, 0.0f, 0.0f } },
-            { {  1.0f,  0.0f,  1.0f }, { 1.0f, 1.0f, -1.0f }, { 0.0f, 1.0f, 0.0f, 0.0f } },
-        };
-        g_VertexData = vertexData;
-
-        UINT indexData[c_NumTris * 3] =
-        {
-            // Top surface.
-            0, 3, 4, 0, 4, 1,
-            1, 4, 5, 1, 5, 2,
-            3, 6, 7, 3, 7, 4,
-            4, 7, 8, 4, 8, 5,
-
-            // Bottom surface.
-            0+9, 4+9, 3+9, 0+9, 1+9, 4+9, 
-            1+9, 5+9, 4+9, 1+9, 2+9, 5+9, 
-            3+9, 7+9, 6+9, 3+9, 4+9, 7+9, 
-            4+9, 8+9, 7+9, 4+9, 5+9, 8+9, 
-
-            // -Z surface.
-            0, 1,  9,  9, 1, 10,
-            1, 2, 10, 10, 2, 11,
-
-            // +Z surface.
-            8, 7, 17, 17, 7, 16,
-            7, 6, 16, 16, 6, 15,
-
-            // +X surface
-            2, 5, 11, 11, 5, 14,
-            5, 8, 14, 14, 8, 17,
-
-            // -X surface
-            6, 3, 15, 15, 3, 12,
-            3, 0, 12, 12, 0,  9,
-        };
-        g_IndexData = indexData;
-        g_FreeArrays = false;
-
-        // Fill in normal, tangent and bitangent data.
-        for ( int i = 0; i < ARRAYSIZE(vertexData); i++ )
-        {
-            // Note this mesh is a "thick slice" of the top surface, so all these are oriented the same way for now.
-            // These all hold scale as well - they are the object-space size that a full 0.0-1.0 UV stretches.
-            // i.e. because the model is 2.0 units wide and deep, and 0-1 UV is stretched over that,
-            // the tengent and bitangent have length 2.0. But the thickness is only 1.0, so the normal is length 1.0.
-            vertexData[i].Normal = Vec3 ( 0.0f, 1.0f, 0.0f );
-            vertexData[i].Tangent = Vec3 ( 2.0f, 0.0f, 0.0f );
-            vertexData[i].Bitangent = Vec3 ( 0.0f, 0.0f, 2.0f );
-        }
-    }
-    else
-#endif
-    if ( g_MeshNumber == 0 )
-    {
         // Tube with rounded ends.
         // The ends are triangles that get stitched together.
         //
+        // MeshType_TubePinched has fully triangular ends that
+        // meet at a point. However, this tends to produce tornados,
+        // which this type is specifically here to demonstrate.
+        // 
         //         <--numSegmentsLong-->
         //        _+---+---+---+---+---+_
         //      _- |   |   |   |   |   | -_
@@ -1717,14 +1655,43 @@ void CreateModel()
         // ...etc
         //    numSegmentsAroundQuarter:<------->
         //
-        // The whole tube goes from 0.1 to 0.9 in UV coordinates to give room for teleports at the edges and ends.
+        // The whole tube goes from 0.1 to 0.7 in UV coordinates to give room for teleports at the edges and ends.
+        //
+        // MeshType_Tube has ends that do not include the final triangle.
+        // Instead they have two end caps that avoid excessive distortion.
+        // 
+        //         <--numSegmentsLong-->
+        //        _+---+---+---+---+---+_      +---+
+        //      _- |   |   |   |   |   | -_   / \ / \
+        //     +_  |   |   |   |   |   |  _+ +---+---+
+        //     | -_|   |   |   |   |   |_- |  \_/_\_/
+        //     +---+---+---+---+---+---+---+   _____
+        //      _-^|   |   |   |   |   |^-_   / \ / \
+        //     +_  |   |   |   |   |   |  _+ +---+---+
+        //     | -_|   |   |   |   |   |_- |  \ / \ /
+        //     +---+---+---+---+---+---+---+   +---+
+        // ...etc
+        //    numSegmentsAroundQuarter:<------->
+        //
+        // The whole tube goes from 0.1 to 0.7 in UV coordinates to give room for teleports at the edges and ends,
+        // and some space for the end caps.
 
         int numSegmentsAroundQuarter = Max ( 1, (g_NumSegmentsAround+2) / 4 ); // How many at each end cap.
 
         g_NumVerts = ( (g_NumSegmentsLong+1) * (g_NumSegmentsAround+1) ); // body
         g_NumTris = 2 * g_NumSegmentsLong * g_NumSegmentsAround; // body
-        g_NumVerts += ( ( numSegmentsAroundQuarter - 1 ) * 2 + 1 ) * 2 * ( g_NumSegmentsAround ); // ends
-        g_NumTris += 2 * ( ( numSegmentsAroundQuarter - 1 ) * 2 + 1 ) * g_NumSegmentsAround; // ends
+        if ( pinchedTube )
+        {
+            g_NumVerts += ( ( numSegmentsAroundQuarter - 1 ) * 2 + 1 ) * 2 * ( g_NumSegmentsAround ); // ends
+            g_NumTris += 2 * ( ( numSegmentsAroundQuarter - 1 ) * 2 + 1 ) * g_NumSegmentsAround; // ends
+        }
+        else
+        {
+            g_NumVerts += ( ( numSegmentsAroundQuarter - 1 ) * 2 ) * 2 * ( g_NumSegmentsAround ); // ends
+            g_NumTris += 2 * ( ( numSegmentsAroundQuarter - 1 ) * 2 ) * g_NumSegmentsAround; // ends
+            g_NumVerts += 2 * ( 1 + g_NumSegmentsAround ); // caps
+            g_NumTris += 2 * ( g_NumSegmentsAround ); // caps
+        }
 
         g_VertexData = new VertexBufferStruct [g_NumVerts];
         g_VertexDataTemp = new VertexBufferStruct [g_NumVerts];
@@ -1743,9 +1710,9 @@ void CreateModel()
             // Middle section starts at endCapLengthInMeters
             float vLength = g_MiddleTubeLength + 2.0f * endCapLengthInMeters;
 
-            // Additional scale by 0.8 and offset by 0.1 allows room at the edges for edgefill/teleport.
-            float vScale = 0.8f * g_MiddleTubeLength / ( vLength * (float)g_NumSegmentsLong );
-            float vOffset = 0.1f + 0.8f * ( endCapLengthInMeters / vLength );
+            // Additional scale by 0.6 and offset by 0.1 allows room at the edges for edgefill/teleport.
+            float vScale = 0.6f * g_MiddleTubeLength / ( vLength * (float)g_NumSegmentsLong );
+            float vOffset = 0.1f + 0.6f * ( endCapLengthInMeters / vLength );
 
             for ( int length = 0; length < g_NumSegmentsLong + 1; length++ )
             {
@@ -1820,7 +1787,7 @@ void CreateModel()
             }
         }
 
-        // End cap verts
+        // End triangle verts
         for ( int capNum = 0; capNum < 2; capNum++ )
         {
             // Total V length (in meters) = g_MiddleTubeLength + 2 * ( PI/2 * g_MeshRadius )
@@ -1828,13 +1795,13 @@ void CreateModel()
             float vLength = g_MiddleTubeLength + 2.0f * endCapLengthInMeters;
 
             // Additional scale by 0.8 and offset by 0.1 allows room at the edges for edgefill/teleport.
-            float vScale = 0.8f * endCapLengthInMeters / ( vLength * (float)numSegmentsAroundQuarter );
-            float vOffset = 0.1f + 0.8f * ( endCapLengthInMeters / vLength );
+            float vScale = 0.6f * endCapLengthInMeters / ( vLength * (float)numSegmentsAroundQuarter );
+            float vOffset = 0.1f + 0.6f * ( endCapLengthInMeters / vLength );
 
             if ( capNum == 1 )
             {
                 vScale = -vScale;
-                vOffset = 0.1f + 0.8f * ( ( endCapLengthInMeters + g_MiddleTubeLength ) / vLength );
+                vOffset = 0.1f + 0.6f * ( ( endCapLengthInMeters + g_MiddleTubeLength ) / vLength );
             }
 
             for ( int length = 1; length <= numSegmentsAroundQuarter; length++ )
@@ -1853,35 +1820,38 @@ void CreateModel()
                         endAngle = -endAngle;
                     }
 
-                    // The "lower" vertex of the strip.
-                    curVert->Pos.x =  sinf ( angle ) * cosf ( endAngle ) * g_MeshRadius;
-                    curVert->Pos.y = -cosf ( angle ) * cosf ( endAngle ) * g_MeshRadius;
-                    curVert->Pos.z = centerPos - sinf ( endAngle ) * g_MeshRadius;
-
-                    curVert->TexCoord.x = 0.1f + 0.8f * angle01; // leave room for teleports.
-                    curVert->TexCoord.y = vOffset - vScale * (float)length;
-                    curVert->TexCoord.z = 1.0f; // full extrusion.
-
-                    curVert->Normal.x =  sinf ( angle ) * cosf ( endAngle ) * g_SurfaceThickness;
-                    curVert->Normal.y = -cosf ( angle ) * cosf ( endAngle ) * g_SurfaceThickness;
-                    curVert->Normal.z = -sinf ( endAngle ) * g_SurfaceThickness;
-
-                    if ( capNum == 0 )
+                    if ( pinchedTube || ( length < numSegmentsAroundQuarter ) )
                     {
-                        curVert->BoneWeights.x = 1.0f;
-                        curVert->BoneWeights.y = 0.0f;
-                        curVert->BoneWeights.z = 0.0f;
-                        curVert->BoneWeights.w = 0.0f;
-                    }
-                    else
-                    {
-                        curVert->BoneWeights.x = 0.0f;
-                        curVert->BoneWeights.y = 0.0f;
-                        curVert->BoneWeights.z = 0.0f;
-                        curVert->BoneWeights.w = 1.0f;
-                    }
+                        // The "lower" vertex of the strip.
+                        curVert->Pos.x =  sinf ( angle ) * cosf ( endAngle ) * g_MeshRadius;
+                        curVert->Pos.y = -cosf ( angle ) * cosf ( endAngle ) * g_MeshRadius;
+                        curVert->Pos.z = centerPos - sinf ( endAngle ) * g_MeshRadius;
 
-                    curVert++;
+                        curVert->TexCoord.x = 0.1f + 0.8f * angle01; // leave room for teleports.
+                        curVert->TexCoord.y = vOffset - vScale * (float)length;
+                        curVert->TexCoord.z = 1.0f; // full extrusion.
+
+                        curVert->Normal.x =  sinf ( angle ) * cosf ( endAngle ) * g_SurfaceThickness;
+                        curVert->Normal.y = -cosf ( angle ) * cosf ( endAngle ) * g_SurfaceThickness;
+                        curVert->Normal.z = -sinf ( endAngle ) * g_SurfaceThickness;
+
+                        if ( capNum == 0 )
+                        {
+                            curVert->BoneWeights.x = 1.0f;
+                            curVert->BoneWeights.y = 0.0f;
+                            curVert->BoneWeights.z = 0.0f;
+                            curVert->BoneWeights.w = 0.0f;
+                        }
+                        else
+                        {
+                            curVert->BoneWeights.x = 0.0f;
+                            curVert->BoneWeights.y = 0.0f;
+                            curVert->BoneWeights.z = 0.0f;
+                            curVert->BoneWeights.w = 1.0f;
+                        }
+
+                        curVert++;
+                    }
 
                     if ( length < numSegmentsAroundQuarter )
                     {
@@ -1926,6 +1896,109 @@ void CreateModel()
             }
         }
 
+        // End cap verts.
+        if ( !pinchedTube )
+        {
+            for ( int capNum = 0; capNum < 2; capNum++ )
+            {
+                int length = numSegmentsAroundQuarter - 1;
+                for ( int around = 0; around < g_NumSegmentsAround; around++ )
+                {
+                    float angle01 = ( (float)around / (float)g_NumSegmentsAround );
+                    float angle = 2.0f * PI * angle01;
+                    float endAngle01 = (float)length / (float)numSegmentsAroundQuarter;
+                    float endAngle = 0.5f * PI * endAngle01;
+
+                    float centerPos = 0.0f;
+                    if ( capNum == 1 )
+                    {
+                        centerPos = g_MiddleTubeLength;
+                        endAngle = -endAngle;
+                    }
+
+                    curVert->Pos.x =  sinf ( angle ) * cosf ( endAngle ) * g_MeshRadius;
+                    curVert->Pos.y = -cosf ( angle ) * cosf ( endAngle ) * g_MeshRadius;
+                    curVert->Pos.z = centerPos - sinf ( endAngle ) * g_MeshRadius;
+
+                    curVert->TexCoord.x = 0.25f + 0.1f * sinf ( angle );
+                    curVert->TexCoord.y = 0.85f + 0.1f * cosf ( angle );
+                    curVert->TexCoord.z = 1.0f; // full extrusion.
+                    if ( capNum == 1 )
+                    {
+                        // Translated in the map and flipped.
+                        curVert->TexCoord.x = 0.75f - 0.1f * sinf ( angle );
+                    }
+
+                    curVert->Normal.x =  sinf ( angle ) * cosf ( endAngle ) * g_SurfaceThickness;
+                    curVert->Normal.y = -cosf ( angle ) * cosf ( endAngle ) * g_SurfaceThickness;
+                    curVert->Normal.z = -sinf ( endAngle ) * g_SurfaceThickness;
+
+                    if ( capNum == 0 )
+                    {
+                        curVert->BoneWeights.x = 1.0f;
+                        curVert->BoneWeights.y = 0.0f;
+                        curVert->BoneWeights.z = 0.0f;
+                        curVert->BoneWeights.w = 0.0f;
+                    }
+                    else
+                    {
+                        curVert->BoneWeights.x = 0.0f;
+                        curVert->BoneWeights.y = 0.0f;
+                        curVert->BoneWeights.z = 0.0f;
+                        curVert->BoneWeights.w = 1.0f;
+                    }
+
+                    curVert++;
+                }
+
+                // End point.
+                {
+                    curVert->Pos.x = 0.0f;
+                    curVert->Pos.y = 0.0f;
+                    curVert->Pos.z = -g_MeshRadius;
+                    if ( capNum == 1 )
+                    {
+                        curVert->Pos.z = g_MiddleTubeLength + g_MeshRadius;
+                    }
+
+                    curVert->TexCoord.x = 0.25f;
+                    curVert->TexCoord.y = 0.85f;
+                    curVert->TexCoord.z = 1.0f; // full extrusion.
+                    if ( capNum == 1 )
+                    {
+                        // Higher in the map
+                        curVert->TexCoord.x = 0.75f;
+                    }
+
+                    curVert->Normal.x = 0.0f;
+                    curVert->Normal.y = 0.0f;
+                    curVert->Normal.z = -g_SurfaceThickness;
+                    if ( capNum == 1 )
+                    {
+                        curVert->Normal.z = g_SurfaceThickness;
+                    }
+
+                    if ( capNum == 0 )
+                    {
+                        curVert->BoneWeights.x = 1.0f;
+                        curVert->BoneWeights.y = 0.0f;
+                        curVert->BoneWeights.z = 0.0f;
+                        curVert->BoneWeights.w = 0.0f;
+                    }
+                    else
+                    {
+                        curVert->BoneWeights.x = 0.0f;
+                        curVert->BoneWeights.y = 0.0f;
+                        curVert->BoneWeights.z = 0.0f;
+                        curVert->BoneWeights.w = 1.0f;
+                    }
+
+                    curVert++;
+                }
+
+            }
+        }
+
         // Now the triangles for the tube
         for ( int length = 0; length < g_NumSegmentsLong; length++ )
         {
@@ -1940,7 +2013,7 @@ void CreateModel()
             }
         }
 
-        // First end cap
+        // First end tris
         int vertCapStart = ( g_NumSegmentsLong + 1 ) * ( g_NumSegmentsAround + 1);
         for ( int around = 0; around < g_NumSegmentsAround; around++ )
         {
@@ -1961,14 +2034,24 @@ void CreateModel()
                 v00 = v10;
                 v01 = v11;
             }
-            // Last tri.
-            *curIndex++ = v00;
-            *curIndex++ = vertCapStart + ( ( ( numSegmentsAroundQuarter - 1 ) * g_NumSegmentsAround ) * 2 + around );
-            *curIndex++ = v01;
+            if ( pinchedTube )
+            {
+                // Last tri.
+                *curIndex++ = v00;
+                *curIndex++ = vertCapStart + ( ( ( numSegmentsAroundQuarter - 1 ) * g_NumSegmentsAround ) * 2 + around );
+                *curIndex++ = v01;
+            }
         }
 
-        // Second end cap
-        vertCapStart += ( ( numSegmentsAroundQuarter - 1 ) * 2 + 1 ) * g_NumSegmentsAround;
+        // Second end tris
+        if ( pinchedTube )
+        {
+            vertCapStart += ( ( numSegmentsAroundQuarter - 1 ) * 2 + 1 ) * g_NumSegmentsAround;
+        }
+        else
+        {
+            vertCapStart += ( ( numSegmentsAroundQuarter - 1 ) * 2 ) * g_NumSegmentsAround;
+        }
         for ( int around = 0; around < g_NumSegmentsAround; around++ )
         {
             int v00 = around + ( g_NumSegmentsAround + 1 ) * g_NumSegmentsLong;
@@ -1989,18 +2072,50 @@ void CreateModel()
                 v00 = v10;
                 v01 = v11;
             }
-            // Last tri.
-            *curIndex++ = v01;
-            *curIndex++ = vertCapStart + ( ( ( numSegmentsAroundQuarter - 1 ) * g_NumSegmentsAround ) * 2 + around );
-            *curIndex++ = v00;
+            if ( pinchedTube )
+            {
+                // Last tri.
+                *curIndex++ = v01;
+                *curIndex++ = vertCapStart + ( ( ( numSegmentsAroundQuarter - 1 ) * g_NumSegmentsAround ) * 2 + around );
+                *curIndex++ = v00;
+            }
+        }
+
+        if ( !pinchedTube )
+        {
+            // End caps.
+            vertCapStart = ( (g_NumSegmentsLong+1) * (g_NumSegmentsAround+1) ) + ( ( numSegmentsAroundQuarter - 1 ) * 2 ) * 2 * ( g_NumSegmentsAround );
+            int v00 = vertCapStart;
+            int v01 = vertCapStart + g_NumSegmentsAround;
+            int v02 = vertCapStart + g_NumSegmentsAround - 1;
+            int v10 = v00 + g_NumSegmentsAround + 1;
+            int v11 = v01 + g_NumSegmentsAround + 1;
+            int v12 = v02 + g_NumSegmentsAround + 1;
+            for ( int width = 0; width < g_NumSegmentsAround; width++ )
+            {
+                *curIndex++ = v00;
+                *curIndex++ = v02;
+                *curIndex++ = v01;
+                *curIndex++ = v10;
+                *curIndex++ = v11;
+                *curIndex++ = v12;
+                v02 = v00;
+                v00++;
+                v12 = v10;
+                v10++;
+            }
         }
 
         ASSERT ( curVert == g_VertexData + g_NumVerts );
         ASSERT ( curIndex == g_IndexData + ( g_NumTris * 3 ) );
     }
-    else
+    else if ( ( g_MeshNumber == MeshType_Cube ) ||
+              ( g_MeshNumber == MeshType_CubePinched ) )
     {
         // An inflated cube with seams.
+
+        bool pinchedCube = ( g_MeshNumber == MeshType_CubePinched );
+
 
         float numSegmentsPerEdge = g_NumSegmentsAround / 4;
 
@@ -2020,13 +2135,28 @@ void CreateModel()
         // 
         //                      |   |   |   |   |
         //          Texture U: 0.1 0.3 0.5 0.7 0.9
-        //
-        // Note that although it looks like you could fuse the edges of faces 1&4 and 1&5,
-        // you can't actually because the corner vertices do not have well-defined tangent spaces
-        // and the huge distortion causes horrible "poles".
         // 
         // The cube is then "inflated" into close to a sphere to make the seams smooth.
         // UV map does not go all the way to the edge to allow space for teleport * edgefill.
+        //
+        // The "pinched" version fuses the top and bottom squares to the
+        // middle, which absolutely looks like it should work.
+        // The problem is that the corner vertices do not have well-defined tangent spaces
+        // and the huge distortion causes horrible "poles".
+        // 
+        //
+        //     +---+                +---+           - 0.2
+        //     | 4 |                |+y |
+        // +---+---+---+---+    +---+---+---+---+   - 0.4
+        // | 0 | 1 | 2 | 3 |    |-z |+x |+z |-x |          Texture V
+        // +---+---+---+---+    +---+---+---+---+   - 0.6
+        //     | 5 |                |-y |
+        //     +---+                +---+           - 0.8
+        // 
+        //                      |   |   |   |   |
+        //          Texture U: 0.1 0.3 0.5 0.7 0.9
+        // 
+        // This is included here for demonstration of this problem.
 
         // 0,1,2,3
         g_NumVerts = (numSegmentsPerEdge + 1) * (4 * numSegmentsPerEdge + 1);
@@ -2107,6 +2237,14 @@ void CreateModel()
 
         for ( int face = 4; face <= 5; face++ )
         {
+            float face4VTop = 0.3f;
+            float face5VTop = 0.9f;
+            if ( pinchedCube )
+            {
+                face4VTop = 0.4f;
+                face5VTop = 0.8f;
+            }
+
             for ( int width = 0; width < numSegmentsPerEdge + 1; width++ )
             {
                 for ( int height = 0; height < numSegmentsPerEdge + 1; height++ )
@@ -2124,14 +2262,14 @@ void CreateModel()
                         vert.Pos        = Vec3 ( -vpos,  1.0f,  hpos );
                         vert.Normal     = Vec3 (  0.0f,  1.0f,  0.0f );
                         vert.TexCoord   = Vec3 ( 0.3f + 0.2f * hfrac,
-                                                 0.3f - 0.2f * vfrac,
+                                                 face4VTop - 0.2f * vfrac,
                                                  1.0f );
                         break;
                     case 5: // -y
                         vert.Pos        = Vec3 (  vpos, -1.0f,  hpos );
                         vert.Normal     = Vec3 (  0.0f, -1.0f,  0.0f );
                         vert.TexCoord   = Vec3 ( 0.3f + 0.2f * hfrac,
-                                                 0.9f - 0.2f * vfrac,
+                                                 face5VTop - 0.2f * vfrac,
                                                  1.0f );
                         break;
                     }
@@ -2180,6 +2318,13 @@ void CreateModel()
                 int v10 = v00 + ( numSegmentsPerEdge + 1 );
                 int v11 = v10 + 1;
 
+                if ( pinchedCube && ( height == 0 ) )
+                {
+                    // The bottom edge of face 4 shares the same verts as the top edge of face 1
+                    v00 = ( 1 * numSegmentsPerEdge + width ) * ( numSegmentsPerEdge + 1 ) + numSegmentsPerEdge;
+                    v10 = v00 + ( numSegmentsPerEdge + 1 );
+                }
+
                 *curInd++ = v00;
                 *curInd++ = v01;
                 *curInd++ = v10;
@@ -2199,6 +2344,13 @@ void CreateModel()
                 int v01 = v00 + 1;
                 int v10 = v00 + ( numSegmentsPerEdge + 1 );
                 int v11 = v10 + 1;
+
+                if ( pinchedCube && ( height == numSegmentsPerEdge - 1 ) )
+                {
+                    // The top edge of face 5 shares the same verts as the bottom edge of face 1
+                    v01 = ( 1 * numSegmentsPerEdge + width ) * ( numSegmentsPerEdge + 1 );
+                    v11 = v01 + ( numSegmentsPerEdge + 1 );
+                }
 
                 *curInd++ = v00;
                 *curInd++ = v01;
@@ -2390,8 +2542,11 @@ void GenerateTangentSpace()
 
     for ( int i = 0; i < g_NumVerts; i++ )
     {
-        ASSERT ( tangentData[i].TotalWeight > 0.0f );
-        float totalWeightRcp = 1.0f / tangentData[i].TotalWeight;
+        float totalWeightRcp = 1.0f;
+        if ( tangentData[i].TotalWeight > 0.0f )
+        {
+            totalWeightRcp = 1.0f / tangentData[i].TotalWeight;
+        }
         // Note that we do NOT use these computed normals, because we don't know how to smooth across seam edges.
         // TODO: this could be added - elsewhere we compute vertex proxmity connections.
         //g_VertexData[i].Normal    = tangentData[i].Normal    * totalWeightRcp;
@@ -2936,74 +3091,78 @@ void CreateTeleportEdgefill()
                 VertexBufferStruct *vert1Dst = &(g_VertexData[v1Prox]);
                 VertexBufferStruct *vert2Dst = &(g_VertexData[v2Prox]);
 
-                // To make sure the SDF has full range, make sure we fill a bit extra.
-                int extraTexels = 5;
-                int uStart = Clamp ( (int)floorf ( Min ( vert1Dst->TexCoord.x, vert2Dst->TexCoord.x ) * g_SurfaceFromObjectTextureSize ) - extraTexels, 0, g_SurfaceFromObjectTextureSize - 1 );
-                int vStart = Clamp ( (int)floorf ( Min ( vert1Dst->TexCoord.y, vert2Dst->TexCoord.y ) * g_SurfaceFromObjectTextureSize ) - extraTexels, 0, g_SurfaceFromObjectTextureSize - 1 );
-                int uEnd   = Clamp ( (int)floorf ( Max ( vert1Dst->TexCoord.x, vert2Dst->TexCoord.x ) * g_SurfaceFromObjectTextureSize ) + extraTexels, 0, g_SurfaceFromObjectTextureSize - 1 );
-                int vEnd   = Clamp ( (int)floorf ( Max ( vert1Dst->TexCoord.y, vert2Dst->TexCoord.y ) * g_SurfaceFromObjectTextureSize ) + extraTexels, 0, g_SurfaceFromObjectTextureSize - 1 );
-                Vec2 vert1DstUV = Vec2 ( vert1Dst->TexCoord.x, vert1Dst->TexCoord.y );
-                Vec2 vert2DstUV = Vec2 ( vert2Dst->TexCoord.x, vert2Dst->TexCoord.y );
-                Vec2 vertDstUVDelta = vert2DstUV - vert1DstUV;
-                float vertDstUVDeltaLengthSq = vertDstUVDelta.GetLengthSq();
-                for ( int uInt = uStart; uInt <= uEnd; uInt++ )
                 {
-                    for ( int vInt = vStart; vInt <= vEnd; vInt++ )
+                    // To make sure the SDF has full range, make sure we fill a bit extra.
+                    int extraTexels = 5;
+                    int uStart = Clamp ( (int)floorf ( Min ( vert1Dst->TexCoord.x, vert2Dst->TexCoord.x ) * g_SurfaceFromObjectTextureSize ) - extraTexels, 0, g_SurfaceFromObjectTextureSize - 1 );
+                    int vStart = Clamp ( (int)floorf ( Min ( vert1Dst->TexCoord.y, vert2Dst->TexCoord.y ) * g_SurfaceFromObjectTextureSize ) - extraTexels, 0, g_SurfaceFromObjectTextureSize - 1 );
+                    int uEnd   = Clamp ( (int)floorf ( Max ( vert1Dst->TexCoord.x, vert2Dst->TexCoord.x ) * g_SurfaceFromObjectTextureSize ) + extraTexels, 0, g_SurfaceFromObjectTextureSize - 1 );
+                    int vEnd   = Clamp ( (int)floorf ( Max ( vert1Dst->TexCoord.y, vert2Dst->TexCoord.y ) * g_SurfaceFromObjectTextureSize ) + extraTexels, 0, g_SurfaceFromObjectTextureSize - 1 );
+                    Vec2 vert1DstUV = Vec2 ( vert1Dst->TexCoord.x, vert1Dst->TexCoord.y );
+                    Vec2 vert2DstUV = Vec2 ( vert2Dst->TexCoord.x, vert2Dst->TexCoord.y );
+                    Vec2 vertDstUVDelta = vert2DstUV - vert1DstUV;
+                    float vertDstUVDeltaLengthSq = vertDstUVDelta.GetLengthSq();
+                    for ( int uInt = uStart; uInt <= uEnd; uInt++ )
                     {
-                        // The middle of the texel.
-                        float u = ( (float)uInt + 0.5f ) / (float)g_SurfaceFromObjectTextureSize;
-                        float v = ( (float)vInt + 0.5f ) / (float)g_SurfaceFromObjectTextureSize;
-                        Vec2 uv ( u, v );
-
-                        // ...and where is that along the edge from vert1Dst to vert2Dst, as a fraction 0...1
-                        Vec2 uvThisVert1Delta = uv - vert1DstUV;
-                        float lambda = vertDstUVDelta.Dot ( uvThisVert1Delta ) / vertDstUVDeltaLengthSq;
-                        lambda = Clamp ( lambda, 0.0f, 1.0f );
-
-                        // So now that's a warp to here.
-                        // Subtlety here is we are warping to the nearest point on the matching edge.
-                        // A better thing to do would be to warp to the equivalent place on the other side of the edge,
-                        // i.e. the starting point is not ON the edge, it's slightly past the edge,
-                        // so it would be good to teleport to the matching place on the mesh. However,
-                        // this is tricky to do, and there is no guarantee that the destination would not immediately need
-                        // another teleport. In practice this seems to work fine.
-                        Vec3 teleportDest = vert1Src->TexCoord + ( vert2Src->TexCoord - vert1Src->TexCoord ) * lambda;
-
-                        // ...and in texels it is this far away from the edge...
-                        Vec2 nearestUV = vert1DstUV + ( vertDstUVDelta ) * lambda;
-                        Vec2 vectorToNearestPoint = nearestUV - uv;
-                        float distance = vectorToNearestPoint.GetLength();
-                        if ( vectorToNearestPoint.x * vertDstUVDelta.y < vectorToNearestPoint.y * vertDstUVDelta.x ) // sign of the 2D cross-product.
+                        for ( int vInt = vStart; vInt <= vEnd; vInt++ )
                         {
-                            // Inside the mesh.
-                            distance = -distance;
-                        }
-                        float curDistance = teleportEdgefillMap[vInt][uInt].teleportDistance;
+                            // The middle of the texel.
+                            float u = ( (float)uInt + 0.5f ) / (float)g_SurfaceFromObjectTextureSize;
+                            float v = ( (float)vInt + 0.5f ) / (float)g_SurfaceFromObjectTextureSize;
+                            Vec2 uv ( u, v );
 
-                        bool replace = false;
-                        if ( distance < 0.0f )
-                        {
-                            replace = distance > curDistance;
-                            if ( distance < -2.0f / (float)g_SurfaceFromObjectTextureSize )
+                            // ...and where is that along the edge from vert1Dst to vert2Dst, as a fraction 0...1
+                            Vec2 uvThisVert1Delta = uv - vert1DstUV;
+                            float lambda = vertDstUVDelta.Dot ( uvThisVert1Delta ) / vertDstUVDeltaLengthSq;
+                            lambda = Clamp ( lambda, 0.0f, 1.0f );
+
+                            // So now that's a warp to here.
+                            // Subtlety here is we are warping to the nearest point on the matching edge.
+                            // A better thing to do would be to warp to the equivalent place on the other side of the edge,
+                            // i.e. the starting point is not ON the edge, it's slightly past the edge,
+                            // so it would be good to teleport to the matching place on the mesh. However,
+                            // this is tricky to do, and there is no guarantee that the destination would not immediately need
+                            // another teleport. In practice this seems to work fine.
+                            Vec3 teleportDest = vert1Src->TexCoord + ( vert2Src->TexCoord - vert1Src->TexCoord ) * lambda;
+
+                            // ...and in texels it is this far away from the edge...
+                            Vec2 nearestUV = vert1DstUV + ( vertDstUVDelta ) * lambda;
+                            Vec2 vectorToNearestPoint = nearestUV - uv;
+                            float distance = vectorToNearestPoint.GetLength();
+                            if ( vectorToNearestPoint.x * vertDstUVDelta.y < vectorToNearestPoint.y * vertDstUVDelta.x ) // sign of the 2D cross-product.
                             {
-                                // This is way inside the mesh. For easier visualisation,
-                                // use the current UV, not the teleport destination one.
-                                teleportDest.x = u;
-                                teleportDest.y = v;
+                                // Inside the mesh.
+                                distance = -distance;
                             }
-                        }
-                        else
-                        {
-                            replace = distance < curDistance;
-                        }
+                            float curDistance = teleportEdgefillMap[vInt][uInt].teleportDistance;
 
-                        if ( replace )
-                        {
-                            teleportEdgefillMap[vInt][uInt].teleportDistance = distance;
-                            teleportEdgefillMap[vInt][uInt].teleportUV = Vec2 ( teleportDest.x, teleportDest.y );
+                            bool replace = false;
+                            if ( distance < 0.0f )
+                            {
+                                replace = distance > curDistance;
+                                if ( distance < -2.0f / (float)g_SurfaceFromObjectTextureSize )
+                                {
+                                    // This is way inside the mesh. For easier visualisation,
+                                    // use the current UV, not the teleport destination one.
+                                    teleportDest.x = u;
+                                    teleportDest.y = v;
+                                }
+                            }
+                            else
+                            {
+                                replace = distance < curDistance;
+                            }
+
+                            if ( replace )
+                            {
+                                teleportEdgefillMap[vInt][uInt].teleportDistance = distance;
+                                teleportEdgefillMap[vInt][uInt].teleportUV = Vec2 ( teleportDest.x, teleportDest.y );
+                            }
                         }
                     }
                 }
+
+
 
                 // Swap and do the other way.
                 int temp = v1Prox;
