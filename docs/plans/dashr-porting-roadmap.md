@@ -4,7 +4,7 @@
 
 Build a native Rust/wgpu experimental viewer with Blender as the initial authoring/export front end. Preserve the D3D11 demo and paper as the reference. First test full-float resource support and correctness; then optimize storage and traversal. Keep a native C++/Metal route available if a measured wgpu limitation blocks the selected Mac target. Do not maintain two complete renderer ports before that evidence exists.
 
-This is a proposal dated 2026-09-29; no phase is implemented. It follows the [source assessment](../research/2026-09-29/repository-assessment.md), [optimization workstreams](../research/2026-09-29/optimization-workstreams.md), [platform research](../research/2026-09-29/platform-feasibility.md) and [benchmark gates](../research/2026-09-29/benchmark-protocol.md).
+This roadmap was proposed on 2026-09-29. A subsequent implementation request produced the [native experimental port](../port/README.md); its [validation record](../port/validation.md) keeps incomplete acceptance gates explicit. No phase is fully promoted. It follows the [source assessment](../research/2026-09-29/repository-assessment.md), [optimization workstreams](../research/2026-09-29/optimization-workstreams.md), [platform research](../research/2026-09-29/platform-feasibility.md) and [benchmark gates](../research/2026-09-29/benchmark-protocol.md).
 
 ## Decision matrix
 
@@ -85,4 +85,4 @@ Define supported Blender objects, materials, lights and output passes explicitly
 
 > Restore a reproducible reference build for the DASHR fork at the recorded v1.0 snapshot. Preserve Tom Forsyth's paper, attribution and reference shader behavior. Pin and document missing dependencies; reconcile Visual Studio paths without a renderer rewrite. Add deterministic settings and captures for the procedural tube and cube, with all parameters and source/asset hashes. Record Windows build and render evidence when hardware is available, and explicitly mark unavailable execution as a blocked evidence gate. Do not claim performance improvements, change height decoding, compress transforms, implement Blender integration or publish packages during this phase. Deliver build docs, fixture manifests and a concise report identifying exactly what was executed and what remains unverified.
 
-Future phase tasks should copy their prerequisites, deliverables, acceptance and stop conditions from this plan, and attach the protocol. No port implementation, commits, pushes, PRs or publication are included in the present research request.
+Future phase tasks should copy their prerequisites, deliverables, acceptance and stop conditions from this plan, and attach the protocol. The original research request excluded implementation and publication. The subsequent native-port request authorized the current Rust/wgpu implementation; commits, pushes, PRs and publication remain outside that request.
