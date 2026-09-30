@@ -40,6 +40,12 @@ Final `mise run check` passed 13 CPU/shader/provenance tests and strict clippy/f
 
 Generated captures/reports live under ignored `out/`; each manifest fingerprints its executable, embedded build sources, resolved settings and assets. They are local execution artifacts, not checked-in reference truth.
 
+## Windows cross-compilation follow-up
+
+Both the Rust viewer and the C++ reference were subsequently compiled and linked on this Mac for Windows x64 and ARM64. Rust source was unchanged; C++ used pinned ImGui/stb and a syntax-only `[[nodiscard]]` fix in a temporary copy. The tracked reference remains unchanged. See the [cross-compilation review](../research/2026-09-29/windows-cross-compilation-sources.md) and [binary fingerprints](../research/2026-09-29/windows-cross-build-report.json).
+
+Linking and PE inspection establish build feasibility. Windows guest startup, adapter/shader execution, Parallels acceleration and D3D11 parity remain unverified; cross-compilation does not close those gates.
+
 ## Roadmap gate status
 
 | Phase | Implemented capability | Acceptance still required |

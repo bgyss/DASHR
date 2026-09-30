@@ -17,6 +17,8 @@ The strongest optimization experiments are transform/teleport bandwidth, static 
 5. [Fork roadmap](../../plans/dashr-porting-roadmap.md): phases, prerequisites, deliverables, stop conditions and first implementation prompt.
 6. [Blender authoring plan](../../plans/blender-authoring-plan.md): asset contract and progression from exporter to optional engine work.
 
+The follow-up [Windows cross-compilation review](windows-cross-compilation-sources.md) records executed x64/ARM64 build probes for both implementations and separate Parallels runtime gates. Its [build evidence](windows-cross-build-report.json) fingerprints the linked executables. These later probes do not change the original research-only evidence scope below.
+
 The follow-up [wgpu attachment-budget note](wgpu-attachment-budget.md) explains requesting 64 or more, adapter ceilings, backend differences and fallback designs.
 
 ## Decisions with the largest impact

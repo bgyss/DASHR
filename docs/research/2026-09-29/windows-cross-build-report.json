@@ -1,0 +1,43 @@
+{
+  "schema": "dashr.windows-cross-build-probe.v1",
+  "date": "2026-09-29",
+  "host": "aarch64-darwin",
+  "rust": "1.94.1",
+  "cargo_xwin": "0.23.1",
+  "clang_lld": "21.1.8",
+  "sdk": "10.0.26100",
+  "msvc_packages": "14.44.17.14 (Visual Studio 17 manifest)",
+  "imgui_revision": "6d910d5487d11ca567b61c7824b0c78c569d62f0",
+  "imgui_tag": "v1.92.5",
+  "stb_revision": "f0569113c93ad095470c54bf34a17b36646bbbb5",
+  "rust_source_changes": false,
+  "tracked_cpp_source_changes": false,
+  "temporary_cpp_patch": "Move [[nodiscard]] before float return type in NtpTimeStamp::SecondsSince",
+  "guest_execution": "not tested",
+  "parallels_installed_version": "26.4.0",
+  "guest_architecture": "unverified",
+  "artifacts": {
+    "rust_x64": {
+      "path": "target/x86_64-pc-windows-msvc/release/dashr.exe",
+      "bytes": 9976320,
+      "sha256": "e068dbae5b58af0ec4604f138029e5b9d85b59d23d543fbab3cd674cb2f21804"
+    },
+    "rust_arm64": {
+      "path": "target/aarch64-pc-windows-msvc/release/dashr.exe",
+      "bytes": 8720896,
+      "sha256": "df2fad7e909c686b6f19acefc65e7ead05ffa7943cbf2f93d5a1ed4ed403a411"
+    },
+    "cpp_x64": {
+      "path": "out/windows-probe/original-x86_64/skinnedheightfield.exe",
+      "bytes": 1218560,
+      "sha256": "08c7162a06304deb88a61a49f2f8b84fddf413ee2e12e3417441fba6e4f5f98d"
+    },
+    "cpp_arm64": {
+      "path": "out/windows-probe/original-aarch64/skinnedheightfield.exe",
+      "bytes": 1054208,
+      "sha256": "dd49be08f3ae1072cfcca6e2b0912fa8c24690ee9ea198f766398e02e406d5cc"
+    }
+  },
+  "source_revision": "7991bcba38e32f873d12402ad126b8a4830b8bc2",
+  "evidence_level": "cross-compiled and linked; PE headers/imports inspected; no guest execution"
+}
