@@ -11,6 +11,8 @@ pub const CONFIG_FILES: &[&str] = &[
     "mise.toml",
     "scripts/in-nix",
     "demo/main.cpp",
+    "demo/comparison_snapshot_format.h",
+    "demo/comparison_snapshot_win.h",
     "demo/PipelineMain.hlsl",
     "demo/PipelineDeform.hlsl",
     "demo/PipelineEdgefill.hlsl",

@@ -27,3 +27,39 @@ fn all_resource_variants_validate_with_wgsl_rules() {
         }
     }
 }
+
+// FXC cannot address dynamic matrix/array l-values inside the ray loop and
+// tries to unroll the caller. Helpers must have statically addressable accesses.
+#[test]
+fn fxc_math_helpers_do_not_require_dynamic_loop_unrolling() {
+    use naga::{Block, Statement};
+    fn loops(block: &Block) -> usize {
+        block
+            .iter()
+            .map(|s| match s {
+                Statement::Loop {
+                    body, continuing, ..
+                } => 1 + loops(body) + loops(continuing),
+                Statement::Block(b) => loops(b),
+                Statement::If { accept, reject, .. } => loops(accept) + loops(reject),
+                Statement::Switch { cases, .. } => cases.iter().map(|c| loops(&c.body)).sum(),
+                _ => 0,
+            })
+            .sum()
+    }
+    let source = dashr::shaders::source("trace", false, 4, 0);
+    let module = naga::front::wgsl::parse_str(&source).unwrap();
+    for name in ["inverse4", "surface_position"] {
+        let function = module
+            .functions
+            .iter()
+            .map(|(_, f)| f)
+            .find(|f| f.name.as_deref() == Some(name))
+            .unwrap();
+        assert_eq!(
+            loops(&function.body),
+            0,
+            "{name} forces FXC array/matrix unrolling"
+        );
+    }
+}

@@ -38,26 +38,25 @@ fn valid_basis(b:mat3x3<f32>) -> bool {
     let scale=length(b[0])*length(b[1])*length(b[2]);
     return scale>0.0 && abs(determinant(b))>scale*1e-8 && finite3(b[0]) && finite3(b[1]) && finite3(b[2]);
 }
-// General cofactor inverse; preserve nonorthogonal metric bases.
+// Original general cofactor inverse with statically addressable components.
+// FXC cannot address dynamic matrix/array l-values inside the caller's ray loop.
 fn inverse4(m:mat4x4<f32>) -> mat4x4<f32> {
-    var cof:mat4x4<f32>;
-    for(var c=0u;c<4u;c++) {
-        for(var r=0u;r<4u;r++) {
-            var cols:array<u32,3>; var rows:array<u32,3>; var ci=0u;var ri=0u;
-            for(var k=0u;k<4u;k++) {
-                if(k!=c){cols[ci]=k;ci++;}
-                if(k!=r){rows[ri]=k;ri++;}
-            }
-            let minor=mat3x3<f32>(
-                vec3<f32>(m[cols[0]][rows[0]],m[cols[0]][rows[1]],m[cols[0]][rows[2]]),
-                vec3<f32>(m[cols[1]][rows[0]],m[cols[1]][rows[1]],m[cols[1]][rows[2]]),
-                vec3<f32>(m[cols[2]][rows[0]],m[cols[2]][rows[1]],m[cols[2]][rows[2]]));
-            cof[c][r]=determinant(minor)*select(1.0,-1.0,((c+r)%2u)==1u);
-        }
-    }
-    let det=dot(m[0],cof[0]);
+    let a=m[0][0]; let b=m[1][0]; let c=m[2][0]; let d=m[3][0];
+    let e=m[0][1]; let f=m[1][1]; let g=m[2][1]; let h=m[3][1];
+    let i=m[0][2]; let j=m[1][2]; let k=m[2][2]; let l=m[3][2];
+    let p=m[0][3]; let q=m[1][3]; let r=m[2][3]; let s=m[3][3];
+    let s0=a*f-e*b; let s1=a*g-e*c; let s2=a*h-e*d;
+    let s3=b*g-f*c; let s4=b*h-f*d; let s5=c*h-g*d;
+    let c0=i*q-p*j; let c1=i*r-p*k; let c2=i*s-p*l;
+    let c3=j*r-q*k; let c4=j*s-q*l; let c5=k*s-r*l;
+    let det=s0*c5-s1*c4+s2*c3+s3*c2-s4*c1+s5*c0;
     if(abs(det)<1e-30){return mat4x4<f32>();}
-    return transpose(cof)*(1.0/det);
+    return mat4x4<f32>(
+        vec4<f32>(f*c5-g*c4+h*c3,-e*c5+g*c2-h*c1,e*c4-f*c2+h*c0,-e*c3+f*c1-g*c0),
+        vec4<f32>(-b*c5+c*c4-d*c3,a*c5-c*c2+d*c1,-a*c4+b*c2-d*c0,a*c3-b*c1+c*c0),
+        vec4<f32>(q*s5-r*s4+s*s3,-p*s5+r*s2-s*s1,p*s4-q*s2+s*s0,-p*s3+q*s1-r*s0),
+        vec4<f32>(-j*s5+k*s4-l*s3,i*s5-k*s2+l*s1,-i*s4+j*s2-l*s0,i*s3-j*s1+k*s0)
+    )*(1.0/det);
 }
 fn affine(b:mat3x3<f32>,p:vec3<f32>) -> mat4x4<f32> {
     return mat4x4<f32>(vec4<f32>(b[0],0.0),vec4<f32>(b[1],0.0),vec4<f32>(b[2],0.0),vec4<f32>(p,1.0));
@@ -78,13 +77,18 @@ fn read_warp(uv:vec2<f32>) -> Warp {
     return Warp(basis,d.xyz,vec2<f32>(a.w,b.w),c.w>0.5 && valid_basis(basis));
 }
 struct Surface { position:vec3<f32>, factor:f32, valid:bool }
+fn damping_axis(distortion:f32)->vec2<f32> {
+    if(distortion<u.damping_extrusion.y){return vec2<f32>(1.0,0.01);}
+    if(distortion>u.damping_extrusion.z){
+        let scale=1.0/(u.damping_extrusion.x*distortion);
+        return vec2<f32>(scale,scale);
+    }
+    return vec2<f32>(1.0);
+}
 fn surface_position(point:vec3<f32>,uv:vec2<f32>) -> Surface {
     let w=read_warp(uv);
-    var scale=vec2<f32>(1.0);var factor=vec2<f32>(1.0);
-    for(var i=0u;i<2u;i++) {
-        if(w.distortion[i]<u.damping_extrusion.y){factor[i]=0.01;}
-        else if(w.distortion[i]>u.damping_extrusion.z){scale[i]=1.0/(u.damping_extrusion.x*w.distortion[i]);factor[i]=scale[i];}
-    }
+    let du=damping_axis(w.distortion.x); let dv=damping_axis(w.distortion.y);
+    let scale=vec2<f32>(du.x,dv.x); let factor=vec2<f32>(du.y,dv.y);
     var pos:vec3<f32>;
     if(u.modes.z==0){pos=w.basis*point+w.anchor; pos=vec3<f32>(uv+(pos.xy-uv)*scale,pos.z);}
     else {pos=(w.basis*(point-w.anchor))*vec3<f32>(scale,1.0)+vec3<f32>(uv,0.5);}

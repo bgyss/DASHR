@@ -5,7 +5,8 @@ use glam::{Mat4, Vec3, Vec4};
 use serde::{Deserialize, Serialize};
 
 #[repr(C, align(16))]
-#[derive(Clone, Copy, Pod, Zeroable, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Pod, Zeroable, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Uniforms {
     pub projection: [[f32; 4]; 4],
     pub camera_from_object: [[f32; 4]; 4],
@@ -54,6 +55,11 @@ pub struct Settings {
     pub teleport_iterations: i32,
     pub step_budget: i32,
     pub hit_depth: bool,
+    pub background: [f32; 3],
+    pub sun_time: f32,
+    pub sun_period: f32,
+    pub sun_elevation: f32,
+    pub uniform_override: Option<Uniforms>,
 }
 impl Default for Settings {
     fn default() -> Self {
@@ -91,10 +97,37 @@ impl Default for Settings {
             teleport_iterations: 0,
             step_budget: 10000,
             hit_depth: false,
+            background: [0.02, 0.025, 0.035],
+            sun_time: 8.,
+            sun_period: 19.,
+            sun_elevation: 0.5,
+            uniform_override: None,
         }
     }
 }
 impl Settings {
+    pub fn load(path: &std::path::Path) -> Result<Self> {
+        let value: serde_json::Value = serde_json::from_slice(&std::fs::read(path)?)?;
+        if value.get("schema").and_then(|v| v.as_str()) == Some("dashr.reference.snapshot.v1") {
+            ensure!(
+                value["status"] == "captured",
+                "reference snapshot failed; use a captured manifest"
+            );
+            ensure!(
+                value["source"]["alpha_mode"].as_i64().unwrap_or(0) == 0,
+                "reference alpha blending is not supported by the portable comparison path"
+            );
+            ensure!(
+                value["source"]["flood_fill"].as_bool().unwrap_or(true),
+                "reference snapshot without topology flood fill is unsupported"
+            );
+        }
+        let settings: Self =
+            serde_json::from_value(value.get("settings").cloned().unwrap_or(value))?;
+        settings.validate()?;
+        Ok(settings)
+    }
+
     pub fn validate(&self) -> Result<()> {
         ensure!(
             (4..=128).contains(&self.around) && (1..=128).contains(&self.long),
@@ -105,8 +138,10 @@ impl Settings {
             "atlas must be a power of two in 16..1024"
         );
         ensure!(
-            (1..=2048).contains(&self.width) && (1..=2048).contains(&self.height),
-            "render dimensions must be 1..2048"
+            (1..=4096).contains(&self.width)
+                && (1..=4096).contains(&self.height)
+                && u64::from(self.width) * u64::from(self.height) <= 8_388_608,
+            "render dimensions must be 1..4096 with at most 8,388,608 pixels"
         );
         ensure!(
             self.texture_set <= 3,
@@ -152,12 +187,13 @@ impl Settings {
             "camera and target coincide"
         );
         ensure!(
-            Vec3::from(self.target).distance(Vec3::from(self.camera)) > self.near
-                && (Vec3::from(self.target) - Vec3::from(self.camera))
-                    .normalize()
-                    .cross(Vec3::Y)
-                    .length()
-                    > 0.01,
+            self.uniform_override.is_some()
+                || (Vec3::from(self.target).distance(Vec3::from(self.camera)) > self.near
+                    && (Vec3::from(self.target) - Vec3::from(self.camera))
+                        .normalize()
+                        .cross(Vec3::Y)
+                        .length()
+                        > 0.01),
             "unsupported camera up vector"
         );
         ensure!(
@@ -182,14 +218,67 @@ impl Settings {
                 && (0..=10).contains(&self.teleport_iterations),
             "invalid trace budget"
         );
+        ensure!(
+            self.background
+                .iter()
+                .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
+            "background must contain finite normalized RGB"
+        );
+        ensure!(
+            self.sun_time.is_finite()
+                && self.sun_period.is_finite()
+                && self.sun_period > 0.
+                && self.sun_elevation.is_finite()
+                && (0.0..=1.0).contains(&self.sun_elevation),
+            "invalid sun settings"
+        );
+        if let Some(u) = &self.uniform_override {
+            // Integer slots are regenerated from validated settings; interpreting their bits as floats
+            // may produce NaN for the valid reference debug sentinel -1.
+            ensure!(
+                u.projection
+                    .iter()
+                    .flatten()
+                    .chain(u.camera_from_object.iter().flatten())
+                    .chain(u.object_from_camera.iter().flatten())
+                    .chain(u.bones.iter().flatten().flatten())
+                    .chain(u.height_step.iter())
+                    .chain(u.sun_atlas.iter())
+                    .chain(u.damping_extrusion.iter())
+                    .chain(u.lighting.iter())
+                    .all(|v| v.is_finite()),
+                "non-finite reference uniform"
+            );
+            for matrix in [&u.projection, &u.camera_from_object, &u.object_from_camera] {
+                ensure!(
+                    Mat4::from_cols_array_2d(matrix).determinant().abs() > 1e-12,
+                    "singular reference camera/projection"
+                );
+            }
+            ensure!(
+                (u.sun_atlas[3] - self.atlas as f32).abs() < 0.1,
+                "reference atlas size differs from resource settings"
+            );
+            let sun = Vec3::new(u.sun_atlas[0], u.sun_atlas[1], u.sun_atlas[2]);
+            ensure!(
+                (sun.length() - 1.).abs() < 1e-4,
+                "reference sun direction must be normalized"
+            );
+        }
         Ok(())
     }
     pub fn uniforms(&self, diagnostics: bool) -> Uniforms {
         let view = Mat4::look_at_lh(Vec3::from(self.camera), Vec3::from(self.target), Vec3::Y);
         let inv = view.inverse();
-        let sun_angle = std::f32::consts::TAU * 8. / 19.;
-        let sun = Vec3::new(sun_angle.sin(), 0.5, sun_angle.cos()).normalize();
-        Uniforms {
+        let sun_angle = std::f32::consts::TAU * (self.sun_time % self.sun_period) / self.sun_period;
+        let horizontal = 1. - self.sun_elevation;
+        let sun = Vec3::new(
+            horizontal * sun_angle.sin(),
+            self.sun_elevation,
+            horizontal * sun_angle.cos(),
+        )
+        .normalize();
+        let mut uniforms = Uniforms {
             projection: reverse_z(
                 self.width as f32 / self.height as f32,
                 self.fov_y,
@@ -231,7 +320,15 @@ impl Settings {
                 self.step_budget,
                 i32::from(diagnostics),
             ],
+        };
+        if let Some(reference) = self.uniform_override {
+            uniforms.projection = reference.projection;
+            uniforms.camera_from_object = reference.camera_from_object;
+            uniforms.object_from_camera = reference.object_from_camera;
+            uniforms.bones = reference.bones;
+            uniforms.sun_atlas = reference.sun_atlas;
         }
+        uniforms
     }
 }
 pub fn reverse_z(aspect: f32, fov: f32, near: f32) -> Mat4 {

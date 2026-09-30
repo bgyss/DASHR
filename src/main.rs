@@ -91,10 +91,7 @@ struct Options {
 impl Options {
     fn resolve(&self) -> Result<Settings> {
         let mut s = if let Some(file) = &self.settings {
-            let v: serde_json::Value =
-                serde_json::from_slice(&std::fs::read(file).context("cannot read settings file")?)?;
-            serde_json::from_value(v.get("settings").cloned().unwrap_or(v))
-                .context("invalid settings JSON")?
+            Settings::load(file).context("invalid settings or reference snapshot")?
         } else {
             Settings::default()
         };
@@ -118,6 +115,15 @@ impl Options {
         }
         if self.hit_depth {
             s.hit_depth = true;
+        }
+        if let Some(reference) = s
+            .uniform_override
+            .as_mut()
+            .filter(|_| self.width.is_some() || self.height.is_some())
+        {
+            let old_aspect = reference.projection[1][1] / reference.projection[0][0];
+            let new_aspect = s.width as f32 / s.height as f32;
+            reference.projection[0][0] *= old_aspect / new_aspect;
         }
         s.validate()?;
         Ok(s)

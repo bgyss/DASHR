@@ -146,7 +146,7 @@ public:
     bool operator<= (NtpTimeStamp other) { return ( counter <= other.counter ); }
     bool operator!= (NtpTimeStamp other) { return ( counter != other.counter ); }
 
-    float [[nodiscard]] SecondsSince ( NtpTimeStamp EarlierTimeStamp ) const
+    [[nodiscard]] float SecondsSince ( NtpTimeStamp EarlierTimeStamp ) const
     {
         sint64 delta = counter - EarlierTimeStamp.counter;
         return (float)delta * ToSeconds;

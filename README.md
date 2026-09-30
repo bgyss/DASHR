@@ -25,7 +25,7 @@ scripts/in-nix mise run setup
 scripts/in-nix mise run view
 ```
 
-Nix supplies rustup/mise; Rust 1.94.1 and Cargo dependencies are pinned, with mutable state isolated under the checkout. See the [viewer guide](docs/port/README.md), [validation and remaining gates](docs/port/validation.md), and [provenance](docs/port/provenance.md). Native Metal rendering is verified locally; D3D11/Windows parity and reviewed scene readiness remain open.
+Nix supplies rustup/mise; Rust 1.95.0 and Cargo dependencies are pinned, with mutable state isolated under the checkout. See the [viewer guide](docs/port/README.md), [validation and remaining gates](docs/port/validation.md), and [provenance](docs/port/provenance.md). Native Metal rendering is verified locally; D3D11/Windows parity and reviewed scene readiness remain open.
 
 ## Fork research and plans
 

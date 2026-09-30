@@ -46,6 +46,12 @@ Both the Rust viewer and the C++ reference were subsequently compiled and linked
 
 Linking and PE inspection establish build feasibility. Windows guest startup, adapter/shader execution, Parallels acceleration and D3D11 parity remain unverified; cross-compilation does not close those gates.
 
+## Snapshot and control follow-up
+
+The comparison exporter, exact-uniform replay and native egui controls are documented in [comparison snapshots](comparison-snapshots.md). Rust 1.95.0 is now pinned for egui 0.36.2. Current ordinary tests and strict formatting/clippy checks, three native GPU test functions, release build and a three-frame overlay window smoke test passed. These include frozen-pose pixel replay and background compositing. Interactive visual review and Windows WIC readback remain open.
+
+The user supplied a running original D3D11 screenshot without exact pose/build metadata. The new Rust ARM64/x64 probes were exercised in the running VM: the Microsoft Basic Render Driver loses the DX12 device during readback. Manual/split fallback and a tiny analytic capture also fail. A separate compile-only ARM64 diagnostic created all three renderer pipelines without submitting GPU work; deformation, gutter and trace compiled successfully, verifying the FXC unrolling fix independently. This is a recorded Windows rendering failure, not a render acceptance. The earlier cross-build report describes the pre-export implementation; the reference now includes snapshot support.
+
 ## Roadmap gate status
 
 | Phase | Implemented capability | Acceptance still required |

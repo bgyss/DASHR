@@ -97,3 +97,36 @@ fn gpu_uniform_sampler_and_affine_contracts() {
         );
     }
 }
+
+#[test]
+#[ignore = "requires a real native GPU; run mise run gpu-test"]
+fn frozen_snapshot_replay_preserves_pixels_and_composites_background() {
+    let settings = Settings {
+        atlas: 64,
+        width: 80,
+        height: 64,
+        texture_set: 3,
+        background: [0.45, 0.55, 0.60],
+        ..Settings::default()
+    };
+    let mut renderer = pollster::block_on(Renderer::headless(
+        &settings,
+        Path::new("demo/assets"),
+        false,
+        0,
+    ))
+    .unwrap();
+    let expected = renderer.render_capture(&settings).unwrap();
+    let replay = Settings {
+        uniform_override: Some(settings.uniforms(false)),
+        camera: [4., 2., -9.],
+        time: 27.,
+        sun_time: 3.,
+        ..settings.clone()
+    };
+    replay.validate().unwrap();
+    assert_eq!(expected, renderer.render_capture(&replay).unwrap());
+    let misses: Vec<_> = expected[0].iter().filter(|p| p[3] == 0.).collect();
+    assert!(!misses.is_empty());
+    assert!(misses.iter().all(|p| p[..3] == settings.background));
+}
