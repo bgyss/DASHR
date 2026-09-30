@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+if [[ "${DASHR_NIX:-}" == 1 ]]; then
+  exec "$@"
+fi
+# A tiny flake snapshot also works in untracked checkouts and avoids copying
+# multi-gigabyte build/toolchain directories into the Nix store.
+export XDG_CACHE_HOME="$PWD/.dev/cache"
+mkdir -p .dev/nix-shell
+cp flake.nix .dev/nix-shell/flake.nix
+if [[ -f flake.lock ]]; then cp flake.lock .dev/nix-shell/flake.lock; fi
+nix develop "path:$PWD/.dev/nix-shell" --command "$@"

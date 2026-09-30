@@ -1,0 +1,28 @@
+# Nix supplies rustup and mise. rustup alone owns the pinned Rust toolchain.
+[tasks.setup]
+description = "Install the pinned Rust toolchain and dependencies in this checkout"
+run = "scripts/in-nix bash -c 'rustup show active-toolchain && cargo fetch --locked'"
+
+[tasks.test]
+run = "scripts/in-nix cargo test --locked"
+
+[tasks.fmt]
+run = "scripts/in-nix cargo fmt --all"
+
+[tasks.lint]
+run = "scripts/in-nix cargo clippy --locked --all-targets -- -D warnings"
+
+[tasks.check]
+run = ["scripts/in-nix cargo fmt --all --check", "scripts/in-nix cargo test --locked", "scripts/in-nix cargo clippy --locked --all-targets -- -D warnings"]
+
+[tasks.build]
+run = "scripts/in-nix cargo build --locked --release"
+
+[tasks.view]
+run = "scripts/in-nix cargo run --locked --release -- view"
+
+[tasks.probe]
+run = "scripts/in-nix cargo run --locked --release -- probe --out out/probe"
+
+[tasks.gpu-test]
+run = "scripts/in-nix cargo test --locked --test gpu -- --ignored --nocapture"
