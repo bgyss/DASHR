@@ -47,4 +47,4 @@ The revised inverse/damping helpers use static scalar accesses so FXC no longer 
 
 A separate compile-only ARM64 diagnostic created deformation, gutter and trace pipelines in Windows without submitting GPU work. All three compiled successfully, directly verifying that FXC accepts the revised trace shader. This isolates shader compilation success from the unresolved device loss.
 
-The new C++ WIC exporter still requires execution in the VM. External captures, human seam/animation review, material-decoder differences and D3D11/Metal parity remain open gates. Local builds and packages are ignored artifacts, not checked-in reference truth.
+The C++ WIC exporter was exercised in the VM: a supplied roof-textured tube snapshot replayed closely on Mac. See the [matched comparison and preserved settings](comparisons/2026-09-30-tube.md). The snapshot-and-controls workstream is closed. Broader material/animation/seam parity, intermediate-map comparison and Windows Rust device loss remain follow-ups. Local builds and packages are ignored artifacts, not checked-in reference truth.

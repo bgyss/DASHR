@@ -1,0 +1,85 @@
+{
+  "schema": "dashr.image.comparison.v1",
+  "reference_manifest_sha256": "e702eec8325c8f40721f9ec3aa9973c474174e070992c65e57ba18087685f7e9",
+  "reference_frame_sha256": "47876180fbdb401bb5951249f3f13d7d95225a440a04e20b96e7152e59ca985a",
+  "mac_frame_sha256": "51a473a32bcc89a066af7d7335c095180c1f79d8822475c8e3154233c97783bd",
+  "dimensions": [
+    2534,
+    1640
+  ],
+  "reference_adapter": "Parallels Display Adapter (WDDM)",
+  "background_reference": [
+    115,
+    140,
+    153
+  ],
+  "background_mac": [
+    115,
+    140,
+    153
+  ],
+  "uniforms_exact_float32_match_except_diagnostic_enable": true,
+  "foreground_proxy": {
+    "definition": "RGB differs from each image corner background; not an independent D3D hit mask",
+    "reference_pixels": 616981,
+    "mac_pixels": 617092,
+    "reference_bbox": [
+      938,
+      501,
+      2107,
+      1288
+    ],
+    "mac_bbox": [
+      938,
+      501,
+      2107,
+      1288
+    ],
+    "union_pixels": 617100,
+    "intersection_pixels": 616973,
+    "disagreement_pixels": 127,
+    "agreement_full_frame_percent": 99.99694400061601,
+    "iou_percent": 99.9794198671204
+  },
+  "whole_frame": {
+    "pixels": 4155760,
+    "rgb_mae_255": 0.007798733966029479,
+    "rgb_rmse_255": 0.7427061739189534,
+    "max_channel_error_255": 153,
+    "p50_max_channel_error_255": 0.0,
+    "p95_max_channel_error_255": 0.0,
+    "p99_max_channel_error_255": 0.0,
+    "exact_rgb_pixels": 4125528,
+    "within_one_code_all_channels_pixels": 4154903,
+    "pixels_max_error_over_16": 222,
+    "pixels_max_error_over_32": 143
+  },
+  "foreground_union": {
+    "pixels": 617100,
+    "rgb_mae_255": 0.05251931075460487,
+    "rgb_rmse_255": 1.927367316819146,
+    "max_channel_error_255": 153,
+    "p50_max_channel_error_255": 0.0,
+    "p95_max_channel_error_255": 0.0,
+    "p99_max_channel_error_255": 1.0,
+    "exact_rgb_pixels": 586868,
+    "within_one_code_all_channels_pixels": 616243,
+    "pixels_max_error_over_16": 222,
+    "pixels_max_error_over_32": 143
+  },
+  "foreground_intersection": {
+    "pixels": 616973,
+    "rgb_mae_255": 0.0261297225864557,
+    "rgb_rmse_255": 0.4282229013592984,
+    "max_channel_error_255": 118,
+    "p50_max_channel_error_255": 0.0,
+    "p95_max_channel_error_255": 0.0,
+    "p99_max_channel_error_255": 1.0,
+    "exact_rgb_pixels": 586868,
+    "within_one_code_all_channels_pixels": 616243,
+    "pixels_max_error_over_16": 95,
+    "pixels_max_error_over_32": 16
+  },
+  "bytes_compared": "UNORM RGB codes; normalized MAE is byte MAE divided by 255; no display gamma conversion",
+  "reference_intermediate_maps_available": false
+}

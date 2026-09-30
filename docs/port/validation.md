@@ -1,6 +1,6 @@
 # Rust/wgpu port validation
 
-Execution date: 2026-09-29. This record describes the experimental native port, not completed D3D11 parity or scene integration.
+Initial execution date: 2026-09-29; comparison evidence updated 2026-09-30. This record describes the experimental native port, not completed D3D11 parity or scene integration.
 
 ## Available-device evidence
 
@@ -42,22 +42,28 @@ Generated captures/reports live under ignored `out/`; each manifest fingerprints
 
 ## Windows cross-compilation follow-up
 
-Both the Rust viewer and the C++ reference were subsequently compiled and linked on this Mac for Windows x64 and ARM64. Rust source was unchanged; C++ used pinned ImGui/stb and a syntax-only `[[nodiscard]]` fix in a temporary copy. The tracked reference remains unchanged. See the [cross-compilation review](../research/2026-09-29/windows-cross-compilation-sources.md) and [binary fingerprints](../research/2026-09-29/windows-cross-build-report.json).
+Both the Rust viewer and the C++ reference were subsequently compiled and linked on this Mac for Windows x64 and ARM64. Rust source was unchanged; C++ used pinned ImGui/stb and a syntax-only `[[nodiscard]]` fix in a temporary copy. That initial cross-build left the tracked reference unchanged; the later snapshot follow-up modifies it. See the [cross-compilation review](../research/2026-09-29/windows-cross-compilation-sources.md) and [binary fingerprints](../research/2026-09-29/windows-cross-build-report.json).
 
-Linking and PE inspection establish build feasibility. Windows guest startup, adapter/shader execution, Parallels acceleration and D3D11 parity remain unverified; cross-compilation does not close those gates.
+Linking and PE inspection alone establish build feasibility. Later Windows execution and comparison evidence is recorded below; cross-compilation by itself does not establish rendering parity.
 
 ## Snapshot and control follow-up
 
-The comparison exporter, exact-uniform replay and native egui controls are documented in [comparison snapshots](comparison-snapshots.md). Rust 1.95.0 is now pinned for egui 0.36.2. Current ordinary tests and strict formatting/clippy checks, three native GPU test functions, release build and a three-frame overlay window smoke test passed. These include frozen-pose pixel replay and background compositing. Interactive visual review and Windows WIC readback remain open.
+The comparison exporter, exact-uniform replay and native egui controls are documented in [comparison snapshots](comparison-snapshots.md). Rust 1.95.0 is now pinned for egui 0.36.2. Current ordinary tests and strict formatting/clippy checks, three native GPU test functions, release build and a three-frame overlay window smoke test passed. These include frozen-pose pixel replay and background compositing. Interactive overlay review remains open; the later supplied snapshot verifies Windows WIC readback.
 
 The user supplied a running original D3D11 screenshot without exact pose/build metadata. The new Rust ARM64/x64 probes were exercised in the running VM: the Microsoft Basic Render Driver loses the DX12 device during readback. Manual/split fallback and a tiny analytic capture also fail. A separate compile-only ARM64 diagnostic created all three renderer pipelines without submitting GPU work; deformation, gutter and trace compiled successfully, verifying the FXC unrolling fix independently. This is a recorded Windows rendering failure, not a render acceptance. The earlier cross-build report describes the pre-export implementation; the reference now includes snapshot support.
+
+## Matched Windows snapshot and Mac replay
+
+The supplied `comparison-20260930T055747-973Z` snapshot verifies Windows D3D11 rendering and WIC export on Parallels Display Adapter (WDDM). Its exact camera, pose and light replayed at 2534×1640 on Apple M1 Max / Metal. The estimated foreground overlap was 99.9794%; 99.8611% of foreground pixels differed by at most one RGB code per channel. The Mac trace reported zero invalid or budget terminations. See the [comparison report and preserved settings](comparisons/2026-09-30-tube.md) for metrics, hashes, reproduction and limitations.
+
+This closes the snapshot-and-controls workstream. It does not resolve Windows Rust DX12 device loss or establish full animation/material/seam parity. Reference intermediate maps and human animation review remain separate evidence gates.
 
 ## Roadmap gate status
 
 | Phase | Implemented capability | Acceptance still required |
 | --- | --- | --- |
-| P0 | Source preserved; software attribution/license and Rust dependencies documented/pinned | Repair and clean-launch original Windows reference; pin original external dependencies; reference captures |
-| P1 | CPU affine/metric/anchor contracts, explicit GPU layout, analytic trace/depth oracle, deterministic captures and GPU timestamps | Original camera/pose captures and intermediate D3D11 comparison; complete benchmark protocol |
+| P0 | Source preserved; software attribution/license and Rust dependencies documented/pinned | Complete reference-build/asset provenance and additional reference fixtures |
+| P1 | CPU affine/metric/anchor contracts, explicit GPU layout, analytic trace/depth oracle, deterministic captures and GPU timestamps | Intermediate D3D11 map comparison and additional camera/pose fixtures; complete benchmark protocol |
 | P2 | Real Mac device, four full-float MRTs, filtered/nearest/manual reads, uniform and offscreen readback; forced split paths | Real Windows adapter/pipelines/results; no browser claim |
 | P3 | All four procedural assets, fixed-bone tube poses, both encodings and GPU-occupancy seam/gutter bake | Cross-backend atlas comparisons and reviewed seam/bend sequence |
 | P4 | Shell tracing, damping, teleports, interpolation, five lighting modes/local shadows, status diagnostics and optional hit depth | D3D11 single-asset parity; reviewed Mac/Windows animation; multi-asset occlusion; near/camera-inside policy validation |
@@ -67,4 +73,4 @@ The user supplied a running original D3D11 screenshot without exact pose/build m
 
 This renderer is an experimental single-asset viewer. It has no general mesh/rig importer, inter-object shadows, reflections, translucent displacement, wireframe overlays, Blender integration or browser build. Pinched/strongly compressed fixtures can still fold or exhaust traversal. A successfully saved diagnostic capture does not mean its geometry passed quality gates.
 
-Windows, Linux, original D3D11 reproduction, external reference image comparison, independent displaced-mesh truth and human animation review were not available in this session. No phase is fully promoted and no performance improvement is claimed.
+Windows C++ snapshot export and one external D3D11/Metal image comparison are now verified. Windows Rust rendering, Linux execution, independent displaced-mesh truth and human animation review remain unaccepted. No phase is fully promoted and no performance improvement is claimed.
