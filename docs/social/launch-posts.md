@@ -45,11 +45,11 @@ All credit for the technique goes to Tom Forsyth.
 
 ## X (thread)
 
-1/ Tom Forsyth published DASHR, a way to get ray-marched heightfield detail on skinned, animating meshes without piles of triangles. The detail follows the skin as it bends. Paper: https://tomforsyth1000.github.io/DASHR/paper/DASHR_Paper.html *(attach: bending-tube GIF)*
+1/ Tom Forsyth published DASHR, a way to get ray-marched heightfield detail on skinned, animating meshes without piles of triangles. The detail follows the skin as it bends. Paper: https://tomforsyth1000.github.io/DASHR/paper/DASHR_Paper.html *(attach: `milder-tube-bend.png` or a bend GIF)*
 
 2/ His release is a paper and a D3D11 demo. He says it isn't meant as a drop-in library, but that anyone who wants to build one should go for it. So I'm doing that.
 
-3/ My fork so far: a Rust/wgpu port that runs on Metal, plus a Windows D3D11 vs Mac capture comparison on the same scene. Still experimental and single-asset. *(attach: side-by-side comparison image)*
+3/ My fork so far: a Rust/wgpu port that runs on Metal, plus a Windows D3D11 vs Mac capture comparison on the same scene. Still experimental and single-asset. *(attach: `windows-vs-mac-tube.png`)*
 
 4/ The goal is a standalone library with a C API for Unreal, Unity and Blender. I've written a phased plan and traced every item from Tom's future-work section into it. No library code yet, so this is the roadmap. https://github.com/bgyss/DASHR
 
