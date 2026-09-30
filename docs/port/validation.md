@@ -68,6 +68,7 @@ This closes the snapshot-and-controls workstream. It does not resolve Windows Ru
 | P3 | All four procedural assets, fixed-bone tube poses, both encodings and GPU-occupancy seam/gutter bake | Cross-backend atlas comparisons and reviewed seam/bend sequence |
 | P4 | Shell tracing, damping, teleports, interpolation, five lighting modes/local shadows, status diagnostics and optional hit depth | D3D11 single-asset parity; reviewed Mac/Windows animation; multi-asset occlusion; near/camera-inside policy validation |
 | P5–P7 | No implementation claimed | Blender schema/export round trip, measured optimizations and optional engine integration remain separate work |
+| P8–P13 | Planned only ([library plan](../plans/standalone-library-and-integrations.md)); no implementation claimed | Library extraction, C ABI, engine shader translation evidence, Blender/Unity/Unreal integrations and topology extensions |
 
 ## Known limits
 

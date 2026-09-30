@@ -16,6 +16,7 @@ The strongest optimization experiments are transform/teleport bandwidth, static 
 4. [Benchmark protocol](benchmark-protocol.md): fixtures, capture schema, suggested thresholds and completion evidence.
 5. [Fork roadmap](../../plans/dashr-porting-roadmap.md): phases, prerequisites, deliverables, stop conditions and first implementation prompt.
 6. [Blender authoring plan](../../plans/blender-authoring-plan.md): asset contract and progression from exporter to optional engine work.
+7. [Upstream future work](../../plans/upstream-future-work.md) and [library/engine integration plan](../../plans/standalone-library-and-integrations.md): added 2026-09-30 after the paper update.
 
 The follow-up [Windows cross-compilation review](windows-cross-compilation-sources.md) records executed x64/ARM64 build probes for both implementations and separate Parallels runtime gates. Its [build evidence](windows-cross-build-report.json) fingerprints the linked executables. These later probes do not change the original research-only evidence scope below.
 

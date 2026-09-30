@@ -2,7 +2,7 @@
 
 ## Priority and method
 
-Profile the reference before optimizing. Separate steady-state rendering, topology bake latency and image/import quality. Many ideas below are already suggested by [Tom's future-work discussion](../../../paper/DASHR_Paper.html#future-work); the contribution of this plan is their ordering, experiment design and evidence gates. All performance effects remain hypotheses.
+Profile the reference before optimizing. Separate steady-state rendering, topology bake latency and image/import quality. Many ideas below are already suggested by [Tom's future-work discussion](../../../paper/DASHR_Paper.html#future-work); the contribution of this plan is their ordering, experiment design and evidence gates. All performance effects remain hypotheses. The [upstream traceability table](../../plans/upstream-future-work.md) maps each of Tom's items (U1-U15) to the workstream IDs below; O5 additionally owns his hit/teleport binary search (U2), teleport-edge step shrinking (U3), transform-delta retry (U4) and tornado mitigation (U1), and O3 his two-channel and split teleport textures (U11-U13). Self-intersection tunnels (U5) and eye-tuned epsilons (U6) are tracked in the [library plan](../../plans/standalone-library-and-integrations.md).
 
 | ID | Workstream | Priority | Experiment and promotion evidence |
 | --- | --- | --- | --- |

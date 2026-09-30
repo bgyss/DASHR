@@ -35,3 +35,5 @@ Nix supplies rustup/mise; Rust 1.95.0 and Cargo dependencies are pinned, with mu
 ## Fork research and plans
 
 [Optimization and porting research](docs/research/2026-09-29/README.md) assesses the source, macOS/Metal and Rust/wgpu feasibility, Blender integration, and phased development with benchmark gates. The dated research predates the native implementation. No speedup or cross-platform parity is claimed.
+
+The forward goal is a standalone library for Unreal Engine, Unity and Blender. See [Tom's future work traced into this fork](docs/plans/upstream-future-work.md) and the [standalone library and integration plan](docs/plans/standalone-library-and-integrations.md).

@@ -4,6 +4,8 @@
 
 Build a native Rust/wgpu experimental viewer with Blender as the initial authoring/export front end. Preserve the D3D11 demo and paper as the reference. First test full-float resource support and correctness; then optimize storage and traversal. Keep a native C++/Metal route available if a measured wgpu limitation blocks the selected Mac target. Do not maintain two complete renderer ports before that evidence exists.
 
+**Direction update (2026-09-30).** After Tom Forsyth's paper update, this fork's goal is a standalone DASHR library embeddable in Unreal Engine, Unity and Blender. Tom's future-work and limitation points are traced in [upstream future work](upstream-future-work.md); phases P8-P13 (library extraction, C ABI and shader feasibility, Blender, Unity, Unreal, topology extensions) are in [standalone library and integrations](standalone-library-and-integrations.md). P0-P7 below remain prerequisites. Library extraction is a fork decision: upstream lists a drop-in library as out of scope for itself and invites others to do it.
+
 This roadmap was proposed on 2026-09-29. A subsequent implementation request produced the [native experimental port](../port/README.md); its [validation record](../port/validation.md) keeps incomplete acceptance gates explicit. No phase is fully promoted. It follows the [source assessment](../research/2026-09-29/repository-assessment.md), [optimization workstreams](../research/2026-09-29/optimization-workstreams.md), [platform research](../research/2026-09-29/platform-feasibility.md) and [benchmark gates](../research/2026-09-29/benchmark-protocol.md).
 
 ## Decision matrix
@@ -16,6 +18,8 @@ This roadmap was proposed on 2026-09-29. A subsequent implementation request pro
 | Blender exporter + external viewer | Real authored meshes without engine surgery | Unique atlas, basis/rig/topology contract | First Blender milestone |
 | Blender custom RenderEngine | DASHR final renders/viewport in Blender | Native renderer lifetime, copies, synchronization, materials | Optional after external viewer passes |
 | Cycles/EEVEE source integration | Native engine-wide visibility and shading | Renderer internals, scene traversal, maintenance | Separate long-term workstream |
+| Standalone library + C ABI | One core for engines and Blender | API/ABI stability, shader translation, host-owned resources | Next major goal after P4 (P8-P9) |
+| Unity / Unreal in-engine passes | Real-time use in games | Render-graph hooks, per-backend shader variants, engine skinning/shadow interaction | Follow the P9 decision record (P11-P12) |
 | Browser WebGPU | Shareable demo | Browser limits, readback, packaging and feature variance | Defer until native portable path is proved |
 
 Effort classes: P0–P2 are bounded setup/probe work; P3–P4 are substantial renderer translation; P5 is an importer/exporter integration; P6 is experimental optimization; P7 is a separate product/engine effort. Calendar estimates would be speculative before baseline and capability probes.
@@ -80,6 +84,10 @@ Deliverables: one experiment report per change with timing distributions, alloca
 Depends on P5 and a reliable native library. First prototype a custom RenderEngine using an external renderer process and CPU image transfer. This makes lifetime and cancellation behavior inspectable before attempting GPU texture sharing. Measure interactive latency and dirty-state handling. A library binding or GPU bridge is justified only after the process prototype shows where the copies matter.
 
 Define supported Blender objects, materials, lights and output passes explicitly. A DASHR custom engine is not automatically Cycles/EEVEE compatibility. Direct engine integration additionally needs scene intersections, shadow/reflection visibility, BSDF/material support, acceleration structure updates and platform kernel integration. Reassess that effort only after a useful authored example exists.
+
+## P8-P13 — library and engine integration
+
+Defined in [standalone library and integrations](standalone-library-and-integrations.md): P8 library extraction and stable API, P9 C ABI and engine-shader feasibility, P10 Blender integration (builds on P5/P7), P11 Unity, P12 Unreal Engine, P13 topology extensions (lone edges, cloth, separate material UVs). Their acceptance gates use the same real-device evidence rules as P0-P7. Optimization items from Tom's future work are scheduled inside P6 (see the mapping table in [upstream future work](upstream-future-work.md)).
 
 ## Copy-ready first implementation task
 

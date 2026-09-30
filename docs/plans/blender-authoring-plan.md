@@ -60,6 +60,15 @@ Implement dependency-graph dirty-state updates and asynchronous frame delivery. 
 
 Only after an authored demonstration establishes value, inspect a pinned Blender source revision for either Cycles intersection integration or EEVEE pass ownership. Choose one. Specify visibility for primary, shadow and reflection rays, hit depth, materials and deformation bounds. Require a small reproducible prototype and compare maintenance/quality/cost with native displacement. A shader node, Geometry Nodes mesh approximation or Python custom engine does not prove a new Cycles primitive.
 
+## Additions from upstream future work and the library goal
+
+- **Lone edges and thin sheets** (clothing): Tom plans cliff-edge geometry; the exporter should detect open boundaries and report them now, and support them in P13 of the [library plan](standalone-library-and-integrations.md). See [upstream future work](upstream-future-work.md) L2.
+- **Metric tangents:** export scaled tangent/bitangent lengths, never MikkTSpace-normalised vectors; an optional normalised tangent channel for Blender/engine shading is separate.
+- **Seam continuity checks:** compare albedo and height across paired seam edges and name offending charts (L11).
+- **Tornado/tunnel diagnostics:** report high-distortion and self-folding regions by face/chart (U1, U5).
+- **Shared schema:** Unity and Unreal importers (P11/P12) reuse this contract, so version it independently of Blender.
+- **Packaging:** ship as a Blender 4.2+ extension with package contents at the ZIP root, relative imports only and the archive layout verified before release.
+
 ## Review checklist
 
 A successful authoring tool must answer what the artist needs to change: atlas overlap, inadequate gutters, unsupported edge topology, discontinuous displacement, excessive bend/thickness or an ill-conditioned basis. Numeric diagnostics should name the affected vertices/faces/charts. Do not hide tornado poles with a step cap or silently fall back to a plausible image and label it supported.
