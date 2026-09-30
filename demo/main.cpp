@@ -39,6 +39,9 @@
 #include "yak_shiv_matrix.h"
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#include "comparison_snapshot_win.h"
+#pragma comment(lib, "windowscodecs.lib")
+#pragma comment(lib, "ole32.lib")
 
 // Dear ImGui data
 static ID3D11Device*            g_pd3dDevice = nullptr;
@@ -363,12 +366,69 @@ const char* AlphaModeNames[] = {
 int g_AlphaMode = 0;
 
 
+// Comparison requests are latched at the next frame boundary. UI edits then
+// rebuild assets and recompute the pose before the snapshot is taken.
+bool g_ComparisonRequested = false;
+bool g_ComparisonOverlay = true;
+char g_ComparisonOutput[1024] = "out/comparison";
+std::string g_ComparisonStatus = "Ready. F9 freezes bone and sun animation and saves the next frame.";
+
+void RequestComparisonSnapshot()
+{
+    g_boneAnimPaused = true;
+    g_sunAnimPaused = true;
+    g_ComparisonRequested = true;
+    g_ComparisonStatus = "Comparison snapshot queued for the next frame.";
+}
+
+dashr_snapshot::Snapshot ComparisonState(const float* background)
+{
+    dashr_snapshot::Snapshot s;
+    const char* meshes[] = {"tube", "cube", "tube-pinched", "cube-pinched"};
+    s.mesh = meshes[g_MeshNumber];
+    s.around = g_NumSegmentsAround; s.long_segments = g_NumSegmentsLong;
+    s.length = g_MiddleTubeLength; s.radius = g_MeshRadius; s.thickness = g_SurfaceThickness;
+    s.atlas = g_SurfaceFromObjectTextureSize; s.width = static_cast<int>(g_CurrentWidth); s.height = static_cast<int>(g_CurrentHeight);
+    s.texture_set = g_TextureSet; s.time = g_boneAnimSeconds; s.bone_time2 = g_boneAnimSeconds2;
+    s.animation_period = g_boneAnimPeriod; s.animation_amount = g_boneAnimAmount;
+    s.near_plane = g_nearClipPlane; s.fov_y = 3.1415f * 0.25f * 180.0f / PI;
+    s.sun_time = g_sunAnimSeconds; s.sun_period = g_sunAnimPeriod; s.sun_elevation = g_sunAnimHeight;
+    s.background = {background[0],background[1],background[2]};
+    s.flood_fill = g_FloodFillTeleportEdgefill; s.alpha_mode = g_AlphaMode;
+    auto& c = g_ConstantBufferData;
+    auto& u = s.uniforms;
+    u.projection = dashr_snapshot::columns_from_rows(c.projectionFromCameraMatrix.AsFloatPtr());
+    u.camera_from_object = dashr_snapshot::columns_from_rows(c.cameraFromObjectMatrix.AsFloatPtr());
+    u.object_from_camera = dashr_snapshot::columns_from_rows(c.objectFromCameraMatrix.AsFloatPtr());
+    for (int b=0;b<4;++b) u.bones[b] = dashr_snapshot::columns_from_rows(c.BoneFromObject[b].AsFloatPtr());
+    u.height_step = {c.HeightScale,c.HeightOffset,c.StepSize,c.StepScale};
+    u.sun_atlas = {c.SunDirInObject.x,c.SunDirInObject.y,c.SunDirInObject.z,c.SurfaceFromObjectTextureSize};
+    u.modes = {c.DebugMode,c.LightingMode,c.DistortionMode,c.MaxSteps};
+    u.damping_extrusion = {c.DebugDampingFactor1,c.DebugDampingFactor2,c.DebugDampingFactor3,c.HeightExtraMeshExtrude};
+    u.lighting = {c.DeltaUVStep,c.ShadowAcneScaler,c.IndirectLighting,c.HeightNormalsScale};
+    u.control = {c.DebugIterationsAfterTeleport,0,10000,0};
+    // The source projection is left handed: camera forward is +Z. Mat44 columns hold its object-space basis.
+    for (int axis=0;axis<3;++axis) { s.camera[axis]=u.object_from_camera[3][axis]; s.target[axis]=s.camera[axis]+u.object_from_camera[2][axis]; }
+    s.adapter = dashr_snapshot::adapter_name(g_pd3dDevice);
+    char feature[32]; std::snprintf(feature,sizeof(feature),"0x%04x",static_cast<unsigned>(g_pd3dDevice->GetFeatureLevel())); s.feature_level = feature;
+    return s;
+}
+
+void ComparisonLog(const std::string& text)
+{
+    g_ComparisonStatus = text;
+    std::fprintf(stderr,"%s\n",text.c_str());
+    OutputDebugStringA((text+"\n").c_str());
+}
+
 // Handy
 #define SAFE_RELEASE(thing) if (thing) { thing->Release(); thing = nullptr; }
 
 // Main code
 int main(int, char**)
 {
+    if (const char* output = std::getenv("DASHR_COMPARISON_OUTPUT"))
+        std::snprintf(g_ComparisonOutput,sizeof(g_ComparisonOutput),"%s",output);
     // Make process DPI aware and obtain main monitor scale
     ImGui_ImplWin32_EnableDpiAwareness();
     float main_scale = ImGui_ImplWin32_GetDpiScaleForMonitor(::MonitorFromPoint(POINT{ 0, 0 }, MONITOR_DEFAULTTOPRIMARY));
@@ -541,11 +601,19 @@ int main(int, char**)
         if (done)
             break;
 
+        const bool captureComparisonThisFrame = g_ComparisonRequested;
+        g_ComparisonRequested = false;
+        if (captureComparisonThisFrame) { g_boneAnimPaused = true; g_sunAnimPaused = true; }
+        dashr_snapshot::Snapshot comparison;
+        std::filesystem::path comparisonDirectory;
+        bool comparisonPrimarySaved = false;
+
         // --- Handle window changes
 
         // Handle window being minimized or screen locked
         if (g_SwapChainOccluded && g_pSwapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED)
         {
+            if (captureComparisonThisFrame) g_ComparisonRequested = true;
             ::Sleep(100); // Don't steal the user's power or CPU or GPU - they're doing something else.
             continue;
         }
@@ -859,6 +927,7 @@ int main(int, char**)
             // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
             {
                 ImGui::Begin("Skinned Heightfield");
+                ImGui::BeginDisabled(captureComparisonThisFrame);
 
                 ImGui::SliderInt("Debug mode", &g_ConstantBufferData.DebugMode, 0, ARRAYSIZE(DebugModeNames) - 1, DebugModeNames[g_ConstantBufferData.DebugMode] );
                 ImGui::SliderInt("Lighting mode", &g_ConstantBufferData.LightingMode, 0, ARRAYSIZE(LightingModeNames) - 1, LightingModeNames[g_ConstantBufferData.LightingMode]);
@@ -921,6 +990,12 @@ int main(int, char**)
                 //ImGui::SliderFloat("Simulation time step (secs)", &g_SimulationTimeStepSeconds, 0.01f, 1.0f);
                 ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
 
+                ImGui::SeparatorText("COMPARISON SNAPSHOT:");
+                ImGui::InputText("Comparison output folder",g_ComparisonOutput,sizeof(g_ComparisonOutput));
+                ImGui::Checkbox("Save overlay.png with GUI/wireframe",&g_ComparisonOverlay);
+                if (ImGui::Button("Comparison snapshot (F9)")) RequestComparisonSnapshot();
+                ImGui::EndDisabled();
+                ImGui::TextWrapped("%s",g_ComparisonStatus.c_str());
                 ImGui::End();
             }
 
@@ -1144,6 +1219,34 @@ int main(int, char**)
             g_pd3dDeviceContext->DrawIndexed((UINT)g_NumTris * 3, 0, 0);
         }
 
+        // Save the exact main-pass image before wireframe or GUI drawing.
+        if (captureComparisonThisFrame)
+        {
+            try
+            {
+                comparisonDirectory = dashr_snapshot::new_directory(g_ComparisonOutput);
+                comparison = ComparisonState(clear_color_with_alpha);
+                dashr_snapshot::manifest(comparison); // Reject non-finite state before writing PNG.
+                dashr_snapshot::png(g_pd3dDevice,g_pd3dDeviceContext,g_pSwapChain,comparisonDirectory/"frame.png");
+                comparisonPrimarySaved = true;
+            }
+            catch (const std::exception& error)
+            {
+                comparison.status = "failed"; comparison.error = error.what();
+                if (!comparisonDirectory.empty())
+                {
+                    std::error_code ignored;
+                    std::filesystem::remove(comparisonDirectory/"frame.png",ignored);
+                    // A minimal failed manifest remains valid even if source state was non-finite.
+                    dashr_snapshot::Snapshot failed; failed.status="failed"; failed.error=error.what();
+                    failed.width=static_cast<int>(g_CurrentWidth); failed.height=static_cast<int>(g_CurrentHeight);
+                    try { dashr_snapshot::write_manifest(comparisonDirectory,failed); }
+                    catch (const std::exception& manifestError) { comparison.error += std::string("; ")+manifestError.what(); }
+                }
+                ComparisonLog("Comparison snapshot failed: "+comparison.error);
+            }
+        }
+
         // Wireframe pass
         if ( g_WireframeMode > 0 )
         {
@@ -1279,6 +1382,33 @@ int main(int, char**)
         if (g_showDearImgui)
         {
             ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+        }
+
+        if (comparisonPrimarySaved)
+        {
+            try
+            {
+                if (g_ComparisonOverlay)
+                {
+                    try
+                    {
+                        dashr_snapshot::png(g_pd3dDevice,g_pd3dDeviceContext,g_pSwapChain,comparisonDirectory/"overlay.png");
+                        comparison.overlay = true;
+                    }
+                    catch (const std::exception& error)
+                    {
+                        std::error_code ignored;
+                        std::filesystem::remove(comparisonDirectory/"overlay.png",ignored);
+                        comparison.error = std::string("optional overlay failed: ")+error.what();
+                    }
+                }
+                dashr_snapshot::write_manifest(comparisonDirectory,comparison);
+                ComparisonLog("Comparison snapshot saved: "+comparisonDirectory.u8string()+(comparison.error.empty() ? "" : "; "+comparison.error));
+            }
+            catch (const std::exception& error)
+            {
+                ComparisonLog(std::string("Comparison snapshot failed: ")+error.what());
+            }
         }
 
         // --- Present
@@ -1508,11 +1638,9 @@ void CreateRenderTarget()
     ID3D11Texture2D* pBackBuffer;
     g_pSwapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
     g_pd3dDevice->CreateRenderTargetView(pBackBuffer, nullptr, &g_mainRenderTargetView);
-    pBackBuffer->Release();
-
-
     D3D11_TEXTURE2D_DESC backBufferDesc;
     pBackBuffer->GetDesc(&backBufferDesc);
+    pBackBuffer->Release();
     g_CurrentWidth = backBufferDesc.Width;
     g_CurrentHeight = backBufferDesc.Height;
 
@@ -1550,6 +1678,12 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    // F9 works even when an ImGui widget has keyboard focus; ignore repeats.
+    if (msg == WM_KEYDOWN && wParam == VK_F9 && !(lParam & (1LL << 30)))
+    {
+        RequestComparisonSnapshot();
+        return 0;
+    }
     if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
         return true;
 

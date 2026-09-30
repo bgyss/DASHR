@@ -530,9 +530,9 @@ impl Renderer {
                 slice,
                 if i == 0 {
                     wgpu::Color {
-                        r: 0.02,
-                        g: 0.025,
-                        b: 0.035,
+                        r: s.background[0] as f64,
+                        g: s.background[1] as f64,
+                        b: s.background[2] as f64,
                         a: 0.,
                     }
                 } else {
@@ -603,12 +603,19 @@ impl Renderer {
     }
     pub fn render_capture(&mut self, s: &Settings) -> Result<Vec<Vec<[f32; 4]>>> {
         let ticket = self.submit(s, true)?;
-        let result = self
+        let mut result = self
             .frame
             .planes
             .iter()
             .map(|p| self.ctx.read_float(&p.texture))
             .collect::<Result<Vec<_>>>()?;
+        // Diagnostic failed shell fragments carry alpha zero; composite their
+        // color against the requested clear color, as the normal discard path does.
+        for pixel in &mut result[0] {
+            if pixel[3] <= 0. {
+                pixel[..3].copy_from_slice(&s.background);
+            }
+        }
         self.last_timings = ticket.map(|t| t.read(&self.ctx)).transpose()?;
         self.ctx.check()?;
         Ok(result)

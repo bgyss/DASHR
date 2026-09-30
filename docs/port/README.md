@@ -4,7 +4,7 @@ The experimental viewer ports the reference's four procedural mesh modes, four-b
 
 ## Isolated environment
 
-Nix pins the shell and supplies rustup, mise, Git and native build dependencies. Rustup selects Rust **1.94.1**, including rustfmt/clippy, from `rust-toolchain.toml`. Cargo dependencies and their transitive versions are locked. Cargo, rustup, mise and XDG cache/state directories live under ignored `.dev/`; build outputs live in ignored `target/`. The shell does not change the user's default Rust toolchain.
+Nix pins the shell and supplies rustup, mise, Git and native build dependencies. Rustup selects Rust **1.95.0**, including rustfmt/clippy, from `rust-toolchain.toml`. Cargo dependencies and their transitive versions are locked. Cargo, rustup, mise and XDG cache/state directories live under ignored `.dev/`; build outputs live in ignored `target/`. The shell does not change the user's default Rust toolchain.
 
 Run from the repository root:
 
@@ -25,6 +25,7 @@ The Darwin shell clears inherited Xcode library/include search paths that can ov
 | --- | --- |
 | Left drag / scroll | Orbit / zoom |
 | Space | Pause animation |
+| F1 | Show / hide control panel |
 | 1 / 2 / 3 / 4 | Tube / cube / pinched tube / pinched cube |
 | T | Cycle roof / rocks / demo / analytic materials |
 | D | Cycle the six original debug modes |
@@ -37,7 +38,7 @@ The Darwin shell clears inherited Xcode library/include search paths that can ov
 | C | Capture current settings to `out/viewer-capture` |
 | Escape | Close |
 
-The UI uses keyboard controls and JSON settings in place of the original ImGui sliders and wireframe overlays. The cube retains the reference's fixed bone-0 weights; this port does not invent a new cube rig. Atlas display clamps raw signed values for inspection; exported float maps preserve the values.
+An egui overlay provides rendering, animation, mesh/material, marching, lighting and camera controls. Expensive resource edits require **Apply / rebuild**; keyboard shortcuts and camera gestures are suppressed while the panel owns input. Wireframe and tangent/normal overlays remain unimplemented. The comparison section loads snapshot/settings JSON, saves default settings and captures a clean frame without the GUI. The cube retains the reference's fixed bone-0 weights. Atlas display clamps raw signed values for inspection; exported float maps preserve the values.
 
 ## Deterministic captures and settings
 
@@ -59,6 +60,8 @@ Use a fresh output folder for each comparison. Captures include full resolved se
 Load either a settings JSON or a capture manifest with `--settings path.json`; explicit CLI options override loaded settings. CLI flags expose common choices; saved JSON exposes all camera, mesh, damping, lighting and marching parameters. Assets default to `demo/assets` relative to the launch directory; use `--assets` when launching elsewhere. See `dashr capture --help`.
 
 The default camera is a reproducible port camera, not a claim that the original interactive camera has been reproduced. Time is the original bone animation clock, with periods 12 and `12 * 0.763` seconds. Captures advance only by the explicit time step.
+
+See [Windows comparison snapshots](comparison-snapshots.md) to export and replay the exact D3D11 camera, bone pose, sun and background. Imported uniforms remain frozen until released, camera/animation/sun edits occur, or resource changes are applied. Scalar rendering edits remain available.
 
 ## Artifact contract
 
@@ -86,7 +89,7 @@ Metric tangents/bitangents are never normalized. Mode 1 corrects object-position
 
 Two deliberate robustness changes are labeled: overflowing reference seam-distance sentinels become finite signed sentinels, and singular/nonfinite interpolated bases become an invalid termination state. Pinched fixtures retain their known pathological behavior; these diagnostics are not a universal geometric repair.
 
-Atlas size is limited to powers of two from 16 through 1024, and offscreen dimensions to 2048 per axis. Eight warp planes cost `128 * atlas²` bytes, before static maps, frame targets, materials and staging. Larger inputs, compression, generalized joint palettes, Blender export and optimization experiments require separate roadmap work.
+Atlas size is limited to powers of two from 16 through 1024, and offscreen dimensions to 4096 per axis with at most 8,388,608 pixels. Eight warp planes cost `128 * atlas²` bytes, before static maps, frame targets, materials and staging. Larger inputs, compression, generalized joint palettes, Blender export and optimization experiments require separate roadmap work.
 
 ## Timing limits
 

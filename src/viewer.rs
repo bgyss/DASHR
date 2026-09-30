@@ -1,4 +1,6 @@
 use anyhow::{Result, anyhow};
+#[path = "viewer_overlay.rs"]
+mod overlay;
 use dashr::{
     asset::MeshKind, capture, gpu_resources::GpuContext, passes::Renderer, settings::Settings,
 };
@@ -147,6 +149,7 @@ struct State {
     cursor: Option<(f64, f64)>,
     view: usize,
     presented: u32,
+    overlay: overlay::Overlay,
 }
 struct App {
     settings: Settings,
@@ -192,6 +195,11 @@ impl App {
             let scale = (width.max(height) as f64 / 2048.).max(1.);
             self.settings.width = (width as f64 / scale).round() as u32;
             self.settings.height = (height as f64 / scale).round() as u32;
+            if let Some(u) = self.settings.uniform_override.as_mut() {
+                let old_aspect = u.projection[1][1] / u.projection[0][0];
+                let new_aspect = self.settings.width as f32 / self.settings.height as f32;
+                u.projection[0][0] *= old_aspect / new_aspect;
+            }
             state
                 .renderer
                 .resize(self.settings.width, self.settings.height)?;
@@ -212,12 +220,6 @@ impl App {
         let size = state.window.inner_size();
         if size.width == 0 || size.height == 0 {
             return Ok(());
-        }
-        let now = Instant::now();
-        let delta = now.duration_since(state.last_tick).as_secs_f32().min(0.1);
-        state.last_tick = now;
-        if !self.paused {
-            self.settings.time += delta;
         }
         let texture = match state.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(t) => t,
@@ -252,10 +254,101 @@ impl App {
                 return Err(anyhow!("surface validation failed"));
             }
         };
+        let now = Instant::now();
+        let delta = now.duration_since(state.last_tick).as_secs_f32().min(0.1);
+        state.last_tick = now;
+        if !self.paused {
+            self.settings.time += delta;
+        }
+        state.overlay.advance_sun(&mut self.settings, delta);
+        let (gui, actions) = state.overlay.frame(
+            &state.window,
+            &mut self.settings,
+            &mut self.paused,
+            &mut state.view,
+        );
+        if let Some(next) = actions.apply {
+            match Renderer::new(state.renderer.ctx.clone(), &next, &self.assets) {
+                Ok(renderer) => {
+                    state.renderer = renderer;
+                    self.settings = next;
+                    state.overlay.sync_resources(&self.settings);
+                    state.overlay.message = "Resource changes applied".into();
+                }
+                Err(error) => state.overlay.message = format!("Rebuild failed: {error:#}"),
+            }
+        }
+        if let Some(path) = actions.load {
+            match Settings::load(std::path::Path::new(&path)) {
+                Ok(mut next) => {
+                    if let Some(u) = next.uniform_override.as_mut() {
+                        let old_aspect = u.projection[1][1] / u.projection[0][0];
+                        let new_aspect = self.settings.width as f32 / self.settings.height as f32;
+                        u.projection[0][0] *= old_aspect / new_aspect;
+                    }
+                    next.width = self.settings.width;
+                    next.height = self.settings.height;
+                    match Renderer::new(state.renderer.ctx.clone(), &next, &self.assets) {
+                        Ok(renderer) => {
+                            self.paused = next.uniform_override.is_some();
+                            state.renderer = renderer;
+                            self.settings = next;
+                            state.overlay.sync_resources(&self.settings);
+                            state.overlay.message = "Snapshot/settings loaded".into();
+                        }
+                        Err(e) => state.overlay.message = format!("{e:#}"),
+                    }
+                }
+                Err(e) => state.overlay.message = format!("{e:#}"),
+            }
+        }
+        if actions.save {
+            let result = std::fs::create_dir_all("out").and_then(|_| {
+                std::fs::write(
+                    "out/viewer-settings.json",
+                    serde_json::to_vec_pretty(&self.settings).unwrap(),
+                )
+            });
+            state.overlay.message = match result {
+                Ok(()) => "Saved out/viewer-settings.json".into(),
+                Err(e) => format!("{e}"),
+            };
+        }
+        if actions.capture {
+            self.paused = true;
+            state.overlay.pause_sun();
+            let output = std::path::PathBuf::from(format!(
+                "out/viewer-capture-{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis()
+            ));
+            state.overlay.message = match capture::run(
+                &output,
+                &self.settings,
+                &self.assets,
+                &capture::CaptureOptions {
+                    manual_filter: self.manual,
+                    split: self.split,
+                    frames: 1,
+                    time_step: 0.,
+                    raw_frames: true,
+                },
+            ) {
+                Ok(()) => format!("Saved {}", output.display()),
+                Err(e) => format!("{e:#}"),
+            };
+        }
         let _ = state.renderer.submit(&self.settings, false)?;
         self.settings.validate()?;
-        self.presentation_draw(&texture.texture.create_view(&Default::default()))?;
-        let state = self.state.as_mut().unwrap();
+        let output_view = texture.texture.create_view(&Default::default());
+        state
+            .presentation
+            .draw(&state.renderer, &output_view, state.view)?;
+        state
+            .overlay
+            .paint(&state.renderer, &state.window, &output_view, gui)?;
         state.window.pre_present_notify();
         state.renderer.ctx.queue.present(texture);
         state.presented += 1;
@@ -267,15 +360,21 @@ impl App {
         }
         Ok(())
     }
-    fn presentation_draw(&self, output: &wgpu::TextureView) -> Result<()> {
-        let state = self.state.as_ref().unwrap();
-        state.presentation.draw(&state.renderer, output, state.view)
-    }
     fn key(&mut self, key: KeyCode, event_loop: &ActiveEventLoop) -> Result<()> {
         let mut rebuild = false;
         match key {
             KeyCode::Escape => event_loop.exit(),
-            KeyCode::Space => self.paused = !self.paused,
+            KeyCode::F1 => {
+                if let Some(state) = self.state.as_mut() {
+                    state.overlay.visible = !state.overlay.visible;
+                }
+            }
+            KeyCode::Space => {
+                self.paused = !self.paused;
+                if !self.paused {
+                    self.settings.uniform_override = None;
+                }
+            }
             KeyCode::Digit1 => {
                 self.settings.mesh = MeshKind::Tube;
                 rebuild = true;
@@ -334,7 +433,11 @@ impl App {
             _ => (),
         }
         if rebuild {
+            self.settings.uniform_override = None;
             self.rebuild()?;
+            if let Some(state) = self.state.as_mut() {
+                state.overlay.sync_resources(&self.settings);
+            }
         }
         self.title();
         Ok(())
@@ -370,6 +473,8 @@ impl ApplicationHandler for App {
                 .ok_or_else(|| anyhow!("no compatible surface format"))?;
             let renderer = Renderer::new(ctx, &self.settings, &self.assets)?;
             let presentation = Presentation::new(&renderer.ctx, config.format);
+            let overlay =
+                overlay::Overlay::new(&renderer.ctx, &window, config.format, &self.settings);
             surface.configure(&renderer.ctx.device, &config);
             Ok(State {
                 window,
@@ -382,6 +487,7 @@ impl ApplicationHandler for App {
                 cursor: None,
                 view: 0,
                 presented: 0,
+                overlay,
             })
         };
         match init() {
@@ -403,6 +509,14 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, id: WindowId, event: WindowEvent) {
         if self.state.as_ref().is_none_or(|s| s.window.id() != id) {
             return;
+        }
+        let toggle = matches!(&event,WindowEvent::KeyboardInput{event,..} if event.state==ElementState::Pressed && event.physical_key==PhysicalKey::Code(KeyCode::F1));
+        if !toggle {
+            let state = self.state.as_mut().unwrap();
+            if state.overlay.event(&state.window, &event) {
+                state.dragging = false;
+                return;
+            }
         }
         let result = match event {
             WindowEvent::CloseRequested => {
@@ -433,6 +547,7 @@ impl ApplicationHandler for App {
                 if state.dragging
                     && let Some((x, y)) = state.cursor
                 {
+                    self.settings.uniform_override = None;
                     let target = Vec3::from(self.settings.target);
                     let offset = Vec3::from(self.settings.camera) - target;
                     let yaw = Quat::from_rotation_y((x - position.x) as f32 * 0.006);
@@ -447,6 +562,7 @@ impl ApplicationHandler for App {
                 Ok(())
             }
             WindowEvent::MouseWheel { delta, .. } => {
+                self.settings.uniform_override = None;
                 let amount = match delta {
                     MouseScrollDelta::LineDelta(_, y) => y,
                     MouseScrollDelta::PixelDelta(p) => p.y as f32 * 0.02,
@@ -478,6 +594,7 @@ pub fn run(
 ) -> Result<()> {
     let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Wait);
+    let reference_paused = settings.uniform_override.is_some();
     let mut app = App {
         settings,
         assets,
@@ -485,7 +602,7 @@ pub fn run(
         split,
         state: None,
         error: None,
-        paused: false,
+        paused: reference_paused,
         exit_after,
     };
     event_loop.run_app(&mut app)?;

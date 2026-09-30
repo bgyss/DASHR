@@ -12,7 +12,7 @@
 
 Run from the repository root using Nix/mise and the pinned rustup toolchain:
 
-- `scripts/in-nix mise run setup`: install Rust 1.94.1 and fetch locked dependencies into checkout-local state.
+- `scripts/in-nix mise run setup`: install Rust 1.95.0 and fetch locked dependencies into checkout-local state.
 - `scripts/in-nix mise run check`: check formatting, run ordinary tests and enforce clippy without warnings.
 - `scripts/in-nix mise run gpu-test`: run explicitly ignored tests on a real native GPU.
 - `scripts/in-nix mise run build`: build the release executable.
