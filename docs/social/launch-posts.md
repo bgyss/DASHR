@@ -4,17 +4,22 @@ Drafts announcing the fork and its goal of becoming a standalone DASHR library f
 
 Links: [paper](https://tomforsyth1000.github.io/DASHR/paper/DASHR_Paper.html), [fork](https://github.com/bgyss/DASHR), [plan](../plans/standalone-library-and-integrations.md).
 
-## Screenshot suggestions
+## Screenshots
 
-Attach one image per post. The comparison PNGs are not committed (they sit under ignored `out/`); regenerate them by following the reproduction steps in the [comparison report](../port/comparisons/2026-09-30-tube.md), or use a fresh `scripts/in-nix mise run view` capture. Paper figures in `paper/` are Tom's; credit him in the caption if reused.
+Attach one image per post. Images live in [`images/`](images/) and were generated from this repository's native viewer/capture path; the Windows frame comes from the preserved D3D11 comparison snapshot. Paper figures in `paper/` are Tom's; credit him if reused.
 
-| Post | Suggested image | Why |
+| Post | Image | Why and caption |
 | --- | --- | --- |
-| LinkedIn | Side-by-side of the Windows D3D11 frame and the Mac/Metal replay of the same tube pose (2534×1640, both unscaled), captioned with the 99.98% foreground overlap and "single pose, not full parity" | Shows the port is real and candid about its limits |
-| X | Short screen recording or GIF of the viewer bending the tube with the heightfield detail staying attached; fall back to one close crop of the Mac frame | Motion sells "detail follows the skin" |
-| Reddit | Comparison image plus one diagnostic view from the viewer (step-count or status overlay) to show the tracer internals | The subreddit audience wants technique detail |
+| LinkedIn | [`windows-vs-mac-tube.png`](images/windows-vs-mac-tube.png) | Windows D3D11 reference (left) and Mac/Metal Rust/wgpu replay (right) of the same tube pose, cropped identically. Caption: "One skinned-tube pose. About 99.98% foreground overlap; a single-frame check, not full parity." The pose is a tight, folded stress case |
+| X | [`milder-tube-bend.png`](images/milder-tube-bend.png) | Gentle bend at 1600×900 with the heightfield detail clearly attached to the surface. Caption: "DASHR port on Metal: a bent tube with ray-marched detail." Consider a short viewer GIF of the bend if you can record one |
+| Reddit | Both images, plus a diagnostic view from the viewer (step-count or status overlay) | Parity evidence and a bend that shows the technique; the diagnostic view suits the technical audience |
 
-Alt text for any attachment: "Skinned tube with a roof-tile heightfield rendered by DASHR; left Windows D3D11, right Mac Metal, same camera and pose."
+Alt text, comparison: "Skinned tube with a roof-tile heightfield rendered by DASHR; left Windows D3D11, right Mac Metal, same camera and pose." Alt text, bend: "A gently bent tube with ray-marched roof-tile relief detail on a dark background."
+
+Provenance:
+
+- `windows-vs-mac-tube.png` is composed from the Windows frame `47876180…` and the Mac replay `51a473a3…` recorded in the [comparison metrics](../port/comparisons/2026-09-30-tube-metrics.json); reproduce it with the steps in the [comparison report](../port/comparisons/2026-09-30-tube.md). Both frames were cropped identically and not otherwise altered.
+- `milder-tube-bend.png` was rendered on Apple M1 Max / Metal at repository revision `1e57a43` with [`milder-tube-settings.json`](images/milder-tube-settings.json) (`fixtures/tube.json` with animation amount 0.35, atlas 512 and a closer camera): `scripts/in-nix cargo run --locked --release -- capture --settings docs/social/images/milder-tube-settings.json --out out/social-milder`. The trace reported zero invalid and zero budget terminations; some ragged fringing remains at the left silhouette. It is a demonstration frame, not a parity or quality acceptance result.
 
 ## LinkedIn
 
