@@ -1,8 +1,8 @@
 # Standalone library and engine/DCC integration plan
 
-Goal: evolve the native Rust/wgpu port from an experimental single-asset viewer into an embeddable DASHR library that Unreal Engine, Unity and Blender integrations can use. This fork takes up Tom Forsyth's invitation to make a real library; upstream remains a research paper and demo and does not plan this itself. Upstream's points are tracked in [upstream future work](upstream-future-work.md); this page covers architecture, integration routes and phases. The earlier [roadmap](dashr-porting-roadmap.md) P0-P7 is unchanged and is a prerequisite here (P8-P13 extend it).
+Goal: evolve the native Rust/wgpu port from an experimental single-asset viewer into an embeddable DASHR library that Unreal Engine, Unity and Blender integrations can use. This fork takes up Tom Forsyth's invitation to make a real library; upstream remains a research paper and demo and does not plan this itself. Upstream's points are tracked in [upstream future work](upstream-future-work.md); this page covers architecture, integration routes and phases. The earlier [roadmap](dashr-porting-roadmap.md) retains P0-P7 evidence gates; P8-P13 extend it. P8 extraction is the highest development priority and does not depend on completing P5-P7.
 
-Nothing below is implemented. Effort and benefit statements are hypotheses; each phase lists evidence required to call it done.
+The existing Rust crate is a starting point, not proof of a standalone library: its manifest currently includes viewer/UI dependencies unconditionally. None of the milestones below is accepted. Effort and benefit statements are hypotheses; each phase lists evidence required to call it done.
 
 ## Principles
 
@@ -114,10 +114,12 @@ Stop: if open edges require a different surface-space definition, document it as
 - Keep shareable docs machine-neutral.
 - Offer upstream issues, not PRs, for findings about the paper (Tom said he is not seeking PRs).
 
-## Suggested next steps
+## Prioritized next steps
 
-1. Promote the remaining P4 gates (Windows Rust path, D3D11 map comparison, reviewed animation). These unblock every claim here.
-2. Start P8 extraction behind unchanged fixtures, since it needs no new hardware.
-3. In parallel, finish B1 (static Blender round trip) for the schema that P11/P12 importers reuse.
-4. Run the P9 shader-translation spike early; its decision record determines the Unity/Unreal architecture and is the largest unknown.
-5. Pick first traversal/storage experiments from [upstream future work](upstream-future-work.md): U12 (split teleport channel) and U15 (affine inverse) are the cheapest measurable starts.
+1. Execute [P8 standalone library goal](standalone-library-goal.md): prove consumption from an independent headless application without viewer dependencies or copied implementation files.
+2. Resolve remaining P0-P4 evidence alongside extraction; keep Windows/D3D11 parity and reviewed animation explicit gates.
+3. Establish P9 C ABI and host-owned resource feasibility before engine-specific integration work. A separate-device copy path must disclose synchronization and measured transfer cost.
+4. Resume P5 authoring and select one P10-P12 integration only after the relevant library/API prerequisites pass.
+5. Run traversal, storage and topology experiments as separately measured changes. Keep all U1-U20 items in the [upstream register](upstream-future-work.md), including deferred research.
+
+The [2026-10-02 research conclusions](../research/2026-10-02-library-first.md) record the source audit and priority decision. Library extraction preserves current behavior; it does not certify robustness, scene readiness or every engine/backend.

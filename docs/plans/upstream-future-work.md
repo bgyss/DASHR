@@ -55,6 +55,10 @@ All expected benefits are hypotheses until measured under the [benchmark protoco
 | L10 | One UV set currently drives albedo, normal, height and tangent space; separate, non-unique material UVs are possible but error-prone | Planned: schema revision after the unique-atlas milestone. Name each UV/tangent space in code and schema so mixing is visible |
 | L11 | Seams need artists to match albedo/heightfield on both sides; robust solutions should be investigated | Planned: seam-continuity checks in the exporter plus an optional seam-blend/bake assist (P13). Height mismatch measured at teleports, per U2 |
 
+## Priority and scope update (2026-10-02)
+
+The user-supplied future-work passage was checked against the preserved paper: U1-U20 cover all of its list items, including the nested animation research avenue. U18 is the highest development priority; execute P8 before optional integrations and optimizations. U16 remains an explicit support contract and research question, U17 includes host lighting hooks with AO/SSS left to host materials, and U19-U20 retain SDF, fractal, Gaussian-splat and voxel research without becoming initial-library requirements. No item is dropped merely because upstream excludes it from its own work. See the [research audit](../research/2026-10-02-library-first.md) and [P8 goal](standalone-library-goal.md).
+
 ## Coverage summary
 
 Every upstream item maps to a workstream or an explicit position above. U1-U15 and L2-L11 are open gates; none is promoted. The current Rust/wgpu viewer implements the reference behavior and related diagnostics, not these improvements. See [validation](../port/validation.md#roadmap-gate-status) for what has actually been executed.
