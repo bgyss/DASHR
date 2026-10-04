@@ -4,25 +4,43 @@ description = "Install the pinned Rust toolchain and dependencies in this checko
 run = "scripts/in-nix bash -c 'rustup show active-toolchain && cargo fetch --locked'"
 
 [tasks.test]
-run = "scripts/in-nix cargo test --locked"
+run = "scripts/in-nix cargo test --locked --features viewer,ffi"
 
 [tasks.fmt]
 run = "scripts/in-nix cargo fmt --all"
 
 [tasks.lint]
-run = "scripts/in-nix cargo clippy --locked --all-targets -- -D warnings"
+run = "scripts/in-nix cargo clippy --locked --all-targets --features viewer,ffi -- -D warnings"
 
 [tasks.check]
-run = ["scripts/in-nix cargo fmt --all --check", "scripts/in-nix cargo test --locked", "scripts/in-nix cargo clippy --locked --all-targets -- -D warnings"]
+run = [
+  "scripts/in-nix cargo fmt --all --check",
+  "scripts/ffi-header --check",
+  "scripts/in-nix cargo check --locked --lib --no-default-features",
+  "scripts/in-nix cargo test --locked --features viewer,ffi",
+  "scripts/in-nix cargo clippy --locked --all-targets --features viewer,ffi -- -D warnings",
+]
 
 [tasks.build]
-run = "scripts/in-nix cargo build --locked --release"
+run = "scripts/in-nix cargo build --locked --release --features viewer"
 
 [tasks.view]
-run = "scripts/in-nix cargo run --locked --release -- view"
+run = "scripts/in-nix cargo run --locked --release --features viewer -- view"
 
 [tasks.probe]
-run = "scripts/in-nix cargo run --locked --release -- probe --out out/probe"
+run = "scripts/in-nix cargo run --locked --release --features viewer -- probe --out out/probe"
 
 [tasks.gpu-test]
-run = "scripts/in-nix cargo test --locked --test gpu -- --ignored --nocapture"
+run = "scripts/in-nix cargo test --locked --features viewer --test gpu -- --ignored --nocapture --test-threads=1"
+
+[tasks.ffi-header]
+description = "Regenerate the checked-in C ABI header from src/ffi.rs"
+run = "scripts/ffi-header"
+
+[tasks.ffi-header-check]
+description = "Check that the C ABI header matches the Rust FFI declarations"
+run = "scripts/ffi-header --check"
+
+[tasks.ffi-smoke]
+description = "Build the cdylib, compile the native C consumer, and render on a native GPU"
+run = "scripts/ffi-smoke"

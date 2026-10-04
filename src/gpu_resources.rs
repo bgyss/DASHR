@@ -240,6 +240,19 @@ impl GpuContext {
             })
             .collect())
     }
+    pub fn read_half_float(&self, texture: &wgpu::Texture) -> Result<Vec<[f32; 4]>> {
+        let bytes = self.read_texture(texture, 8)?;
+        Ok(bytes
+            .chunks_exact(8)
+            .map(|pixel| {
+                std::array::from_fn(|channel| {
+                    let offset = channel * 2;
+                    half::f16::from_bits(u16::from_le_bytes([pixel[offset], pixel[offset + 1]]))
+                        .to_f32()
+                })
+            })
+            .collect())
+    }
 }
 pub struct Texture {
     pub texture: wgpu::Texture,
@@ -285,6 +298,33 @@ impl Texture {
             width,
             height,
             wgpu::TextureFormat::Rgba32Float,
+            wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST,
+        )
+    }
+    pub fn float_storage(ctx: &GpuContext, label: &str, width: u32, height: u32) -> Result<Self> {
+        Self::new(
+            ctx,
+            label,
+            width,
+            height,
+            wgpu::TextureFormat::Rgba32Float,
+            wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::STORAGE_BINDING,
+        )
+    }
+    pub fn float16(ctx: &GpuContext, label: &str, width: u32, height: u32) -> Result<Self> {
+        Self::new(
+            ctx,
+            label,
+            width,
+            height,
+            wgpu::TextureFormat::Rgba16Float,
             wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC

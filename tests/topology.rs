@@ -64,5 +64,12 @@ fn open_mesh_and_empty_or_wrong_coverage_are_rejected() {
     assert!(bake(&mesh, 64, &[]).is_err());
     assert!(bake(&mesh, 64, &vec![false; 4096]).is_err());
     mesh.indices.truncate(mesh.indices.len() - 3);
-    assert!(bake(&mesh, 64, &occupancy(&mesh, 64)).is_err());
+    let error = bake(&mesh, 64, &occupancy(&mesh, 64))
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("face "), "missing face identifier: {error}");
+    assert!(
+        error.contains("edge vertices"),
+        "missing edge vertex identifiers: {error}"
+    );
 }

@@ -1,0 +1,12 @@
+[package]
+name = "dashr-standalone-consumer"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+anyhow = "=1.0.104"
+dashr = { path = "../..", default-features = false }
+pollster = "=1.0.1"

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec scripts/in-nix cargo run --locked --example generate_ffi_header --features ffi -- "$@"

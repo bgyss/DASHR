@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$repo_root"
+
+scripts/in-nix cargo build --locked --release --no-default-features --features ffi --lib
+scripts/in-nix cc \
+    -std=c11 \
+    -Wall \
+    -Wextra \
+    -Werror \
+    -I "$repo_root/include" \
+    "$repo_root/examples/c-consumer/main.c" \
+    -L "$repo_root/target/release" \
+    -ldashr \
+    "-Wl,-rpath,$repo_root/target/release" \
+    -o "$repo_root/target/ffi-c-consumer"
+scripts/in-nix "$repo_root/target/ffi-c-consumer"

@@ -119,6 +119,7 @@ pub fn run(out: &Path, s: &Settings, assets: &Path, options: &CaptureOptions) ->
         "build_provenance":build_provenance(),
         "executable_sha256":hash(&std::fs::read(std::env::current_exe()?)?),
         "runtime_source_hashes":source_hashes().ok(),"fixture_sha256":hash(&serde_json::to_vec(s)?),"settings":s,
+        "resolved_tolerances":s.resolved_tolerances(),
         "derived_uniforms":s.uniforms(true),"uniform_sha256":hash(bytemuck::bytes_of(&s.uniforms(true))),
         "runtime_rustc":command_output("rustc",&["-vV"]),"os":std::env::consts::OS,"architecture":std::env::consts::ARCH,
         "os_version":if cfg!(target_os="macos"){command_output("sw_vers",&["-productVersion"])}else{command_output("uname",&["-r"])},
@@ -188,16 +189,29 @@ pub fn run(out: &Path, s: &Settings, assets: &Path, options: &CaptureOptions) ->
                 for (i, p) in renderer.atlas_planes()?.iter().enumerate() {
                     save_float(&out.join(format!("warp-{i}.rgba32f")), p)?;
                 }
-                for (i, p) in renderer.raw.iter().enumerate() {
+                let raw_planes = renderer.raw_planes()?;
+                for (i, pixels) in raw_planes.iter().enumerate() {
+                    save_float(&out.join(format!("raw-warp-{i}.rgba32f")), pixels)?;
+                }
+                if renderer.split_teleport {
+                    std::fs::write(
+                        out.join("teleport-distance.r32f"),
+                        renderer.ctx.read_texture(&renderer.teleport.texture, 4)?,
+                    )?;
+                    let destination = renderer
+                        .teleport_destination
+                        .as_ref()
+                        .expect("split teleport destination texture");
+                    std::fs::write(
+                        out.join("teleport-destination.rg32f"),
+                        renderer.ctx.read_texture(&destination.texture, 8)?,
+                    )?;
+                } else {
                     save_float(
-                        &out.join(format!("raw-warp-{i}.rgba32f")),
-                        &renderer.ctx.read_float(&p.texture)?,
+                        &out.join("teleport.rgba32f"),
+                        &renderer.ctx.read_float(&renderer.teleport.texture)?,
                     )?;
                 }
-                save_float(
-                    &out.join("teleport.rgba32f"),
-                    &renderer.ctx.read_float(&renderer.teleport.texture)?,
-                )?;
                 save_float(
                     &out.join("edgefill.rgba32f"),
                     &renderer.ctx.read_float(&renderer.edgefill.texture)?,

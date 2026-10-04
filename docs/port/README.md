@@ -2,6 +2,8 @@
 
 The experimental viewer ports the reference's four procedural mesh modes, four-bone skinning, metric tangent generation, GPU deformation atlas, CPU seam/gutter bake, both distortion encodings, ray stepping/teleports, lighting and local shadows. The original D3D11 source and paper remain intact. [Validation status](validation.md) separates native-device evidence from the roadmap's remaining parity gates.
 
+The package also exposes a headless [standalone Rust library API](library-api.md). The default dependency feature set excludes the viewer and UI dependencies; the `viewer` feature enables the CLI, capture/probe tooling and windowed client.
+
 ## Isolated environment
 
 Nix pins the shell and supplies rustup, mise, Git and native build dependencies. Rustup selects Rust **1.95.0**, including rustfmt/clippy, from `rust-toolchain.toml`. Cargo dependencies and their transitive versions are locked. Cargo, rustup, mise and XDG cache/state directories live under ignored `.dev/`; build outputs live in ignored `target/`. The shell does not change the user's default Rust toolchain.
@@ -43,21 +45,25 @@ An egui overlay provides rendering, animation, mesh/material, marching, lighting
 ## Deterministic captures and settings
 
 ```sh
-scripts/in-nix cargo run --locked --release -- probe --out out/probe
-scripts/in-nix cargo run --locked --release -- capture \
+scripts/in-nix cargo run --locked --release --features viewer -- probe --out out/probe
+scripts/in-nix cargo run --locked --release --features viewer -- capture \
   --out out/tube --mesh tube --texture-set 0 --time 10 --width 480 --height 360
-scripts/in-nix cargo run --locked --release -- capture \
+scripts/in-nix cargo run --locked --release --features viewer -- capture \
   --out out/cube --mesh cube --texture-set 2 --distortion 0 --hit-depth
-scripts/in-nix cargo run --locked --release -- capture \
+scripts/in-nix cargo run --locked --release --features viewer -- capture \
   --out out/bend --mesh tube --time 0 --frames 120 --time-step 0.1 \
   --width 320 --height 240
-scripts/in-nix cargo run --locked --release -- capture \
+scripts/in-nix cargo run --locked --release --features viewer -- capture \
   --out out/manual --manual-filter --split 2 --texture-set 3
 ```
 
 Use a fresh output folder for each comparison. Captures include full resolved settings, fixture hash, material source/decoded hashes, adapter features and requested/maximum limits. The executable embeds its **build-time** source hashes and compiler identity; manifests also record executable SHA256 and separately labeled runtime workspace hashes/toolchain information. Runtime Git queries are anchored to the source checkout, even when the executable is launched from another directory. Source edits after a build cannot relabel compiled shaders.
 
 Load either a settings JSON or a capture manifest with `--settings path.json`; explicit CLI options override loaded settings. CLI flags expose common choices; saved JSON exposes all camera, mesh, damping, lighting and marching parameters. Assets default to `demo/assets` relative to the launch directory; use `--assets` when launching elsewhere. See `dashr capture --help`.
+
+Traversal and math experiments are opt-in: `--refine-hits` enables same-chart/teleport bracket refinement, `--seam-aware-stepping` checks predicted steps against signed seam distance, `--adaptive-steps` compares consecutive surface transforms, and `--specialized-inverse` selects the 3x3 cofactor inverse. `--scale-derived-epsilons` opts into the U6 asset-scale policy. Reference traversal, inverse math and tolerances remain the default. These settings are also available in JSON; see [U1-U4 validation](validation.md#u1-u4-traversal-experiments), [U6 tolerance evidence](validation.md#u6-scale-derived-tolerances) and [U15 validation](validation.md#u15-specialized-inverse-experiment).
+
+Storage/pass experiments are also opt-in: `--stored-inverse`, `--compute-edgefill`, `--indirect-edgefill`, `--split-teleport` and `--compact-warp` select the U7-U14 prototypes. Some alter quality or show mixed timing and are not promoted; see the [U7-U14 validation record](validation.md#u7-stored-inverse-atlas-experiment) before selecting one.
 
 The default camera is a reproducible port camera, not a claim that the original interactive camera has been reproduced. Time is the original bone animation clock, with periods 12 and `12 * 0.763` seconds. Captures advance only by the explicit time step.
 

@@ -1,0 +1,46 @@
+language = "C"
+cpp_compat = true
+style = "type"
+include_guard = "DASHR_H"
+sys_includes = ["stdint.h"]
+no_includes = true
+documentation = true
+documentation_style = "c"
+documentation_length = "full"
+autogen_warning = "/* Generated from src/ffi.rs by cbindgen 0.29.4. Do not edit directly. */"
+header = '''
+#if defined(_WIN32)
+#  if defined(DASHR_BUILDING_LIBRARY)
+#    define DASHR_API __declspec(dllexport)
+#  else
+#    define DASHR_API __declspec(dllimport)
+#  endif
+#else
+#  define DASHR_API __attribute__((visibility("default")))
+#endif
+'''
+
+[parse]
+parse_deps = false
+
+[export]
+item_types = ["constants", "functions", "opaque", "structs", "typedefs"]
+include = [
+    "DASHR_FFI_ABI_VERSION",
+    "DASHR_STATUS_NOT_LAUNCHED",
+    "DASHR_STATUS_HIT",
+    "DASHR_STATUS_ESCAPED",
+    "DASHR_STATUS_BUDGET_EXHAUSTED",
+    "DASHR_STATUS_INVALID_BASIS",
+    "DASHR_STATUS_DEBUG_FORCED_HIT",
+    "DASHR_LOG_DEBUG",
+    "DASHR_LOG_INFO",
+    "DASHR_LOG_WARNING",
+    "DASHR_LOG_ERROR",
+]
+
+[fn]
+prefix = "DASHR_API"
+
+[const]
+allow_static_const = false

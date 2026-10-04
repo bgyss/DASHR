@@ -1,13 +1,13 @@
 //! Procedural assets translated from Tom Forsyth's CreateModel/GenerateTangentSpace.
 use anyhow::{Result, ensure};
 use bytemuck::{Pod, Zeroable};
-use clap::ValueEnum;
 use glam::{Mat3, Mat4, Vec2, Vec3};
 use serde::{Deserialize, Serialize};
 use std::f32::consts::{FRAC_PI_2, TAU};
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Pod, Zeroable)]
+#[serde(deny_unknown_fields)]
 pub struct Vertex {
     pub position: [f32; 3],
     pub uv: [f32; 3],
@@ -29,7 +29,8 @@ impl Vertex {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "tooling", derive(clap::ValueEnum))]
 #[serde(rename_all = "kebab-case")]
 pub enum MeshKind {
     Tube,
@@ -43,6 +44,8 @@ impl MeshKind {
     }
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,

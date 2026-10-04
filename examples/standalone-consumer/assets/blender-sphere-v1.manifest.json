@@ -1,0 +1,20 @@
+{
+  "asset_sha256": "c8d2d03b9f6ae88baa8ef8c46630ea2b3a45b992c8891e1180b4cebb8569aab7",
+  "basis": "per-triangle metric derivative from world position and UV",
+  "blender_version": "5.2.2 LTS",
+  "coordinate_space": "Blender scene world coordinates",
+  "deformation_mode": "static_evaluated_mesh",
+  "exported_loop_vertices": 240,
+  "fixture": "icosphere_per_face_atlas",
+  "scene_unit_scale": 1.0,
+  "schema": "dashr.blender-export-manifest.v1",
+  "seam_edge_count": 120,
+  "source_mesh": "DASHR_SphereFixtureMesh",
+  "source_object": "DASHR_SphereFixture",
+  "source_vertices": 42,
+  "topology_geometric_edges": 120,
+  "triangles": 80,
+  "triangulation": "evaluated Blender loop triangles",
+  "uv_island_count": 80,
+  "uv_layer": "DASHR_Unique"
+}

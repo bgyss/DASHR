@@ -2,7 +2,10 @@
 use crate::asset::Mesh;
 use anyhow::{Result, ensure};
 use glam::{Vec2, Vec3};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Maps {
     pub teleport: Vec<[f32; 4]>,
     pub edgefill: Vec<[f32; 4]>,
@@ -17,16 +20,44 @@ struct Cell {
     teleport_uv: Vec2,
 }
 
-pub fn bake(mesh: &Mesh, n: u32, occupancy: &[bool]) -> Result<Maps> {
-    ensure!(
-        (16..=1024).contains(&n) && occupancy.len() == (n * n) as usize,
-        "invalid atlas size or occupancy dimensions"
-    );
-    ensure!(
-        occupancy.iter().any(|x| *x),
-        "GPU UV raster produced no covered texels"
-    );
-    // Same 1mm proximity rule as the original; do not silently use it as an importer.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SeamPair {
+    pub(crate) face: usize,
+    pub(crate) edge: [usize; 2],
+    pub(crate) partner_face: usize,
+    pub(crate) partner_edge: [usize; 2],
+    pub(crate) position_key: [usize; 2],
+}
+
+pub(crate) fn validate_indexed_edge_incidence(mesh: &Mesh) -> Result<()> {
+    let mut incident_faces = BTreeMap::<[u32; 2], Vec<usize>>::new();
+    for (face, triangle) in mesh.indices.chunks_exact(3).enumerate() {
+        for (a, b) in [
+            (triangle[2], triangle[0]),
+            (triangle[0], triangle[1]),
+            (triangle[1], triangle[2]),
+        ] {
+            incident_faces
+                .entry([a.min(b), a.max(b)])
+                .or_default()
+                .push(face);
+        }
+    }
+    for (edge, faces) in incident_faces {
+        ensure!(
+            faces.len() <= 2,
+            "nonmanifold indexed edge at face {}, edge vertices {}, {}: {} incident triangles",
+            faces[0],
+            edge[0],
+            edge[1],
+            faces.len()
+        );
+    }
+    Ok(())
+}
+
+pub(crate) fn seam_pairs(mesh: &Mesh) -> Result<Vec<SeamPair>> {
+    // Same 1mm proximity rule as the original bake; do not silently use it as an importer.
     let mut prox: Vec<usize> = (0..mesh.vertices.len()).collect();
     for i in 0..mesh.vertices.len() {
         for j in 0..i {
@@ -40,37 +71,59 @@ pub fn bake(mesh: &Mesh, n: u32, occupancy: &[bool]) -> Result<Maps> {
         }
     }
     let mut edges = Vec::new();
-    for tri in mesh.indices.chunks_exact(3) {
+    for (face, tri) in mesh.indices.chunks_exact(3).enumerate() {
         for (a, b) in [(tri[2], tri[0]), (tri[0], tri[1]), (tri[1], tri[2])] {
-            edges.push((a as usize, b as usize));
+            edges.push((a as usize, b as usize, face));
         }
     }
     let mut seams = Vec::new();
-    for &(a, b) in &edges {
-        if edges.contains(&(b, a)) {
+    for &(a, b, face) in &edges {
+        if edges.iter().any(|&(c, d, _)| c == b && d == a) {
             continue;
         }
         let candidates: Vec<_> = edges
             .iter()
-            .filter(|&&(c, d)| prox[c] == prox[b] && prox[d] == prox[a])
-            .copied()
+            .filter(|&&(c, d, _)| prox[c] == prox[b] && prox[d] == prox[a])
+            .map(|&(c, d, partner_face)| (c, d, partner_face))
             .collect();
         ensure!(
             candidates.len() == 1,
-            "open/nonmanifold or ambiguous seam at vertices {a}, {b}: {} partners",
+            "open/nonmanifold or ambiguous seam at face {face}, edge vertices {a}, {b}: {} partners",
             candidates.len()
         );
-        let (c, d) = candidates[0];
+        let (c, d, partner_face) = candidates[0];
         ensure!(
             Vec3::from(mesh.vertices[a].normal).distance(Vec3::from(mesh.vertices[d].normal))
                 < 1e-3
                 && Vec3::from(mesh.vertices[b].normal)
                     .distance(Vec3::from(mesh.vertices[c].normal))
                     < 1e-3,
-            "hard-normal seam is unsupported"
+            "hard-normal seam is unsupported between faces {face} and {partner_face}"
         );
-        seams.push((a, b, d, c));
+        let mut position_key = [prox[a], prox[b]];
+        position_key.sort_unstable();
+        seams.push(SeamPair {
+            face,
+            edge: [a, b],
+            partner_face,
+            partner_edge: [d, c],
+            position_key,
+        });
     }
+    ensure!(!seams.is_empty(), "asset has no chart seams");
+    Ok(seams)
+}
+
+pub fn bake(mesh: &Mesh, n: u32, occupancy: &[bool]) -> Result<Maps> {
+    ensure!(
+        (16..=1024).contains(&n) && occupancy.len() == (n * n) as usize,
+        "invalid atlas size or occupancy dimensions"
+    );
+    ensure!(
+        occupancy.iter().any(|x| *x),
+        "GPU UV raster produced no covered texels"
+    );
+    let seams = seam_pairs(mesh)?;
     let mut cells: Vec<_> = occupancy
         .iter()
         .map(|present| Cell {
@@ -82,8 +135,10 @@ pub fn bake(mesh: &Mesh, n: u32, occupancy: &[bool]) -> Result<Maps> {
         })
         .collect();
     let uv = |v: usize| Vec3::from(mesh.vertices[v].uv).truncate();
-    for &(a, b, c, d) in &seams {
+    for seam in &seams {
         // Each directed seam writes its partner; the reverse appears in seams too.
+        let [a, b] = seam.edge;
+        let [c, d] = seam.partner_edge;
         let src0 = uv(a);
         let src1 = uv(b);
         let dst0 = uv(c);
