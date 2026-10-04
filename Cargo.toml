@@ -4,26 +4,63 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT-0"
-description = "Native Rust/wgpu port of Tom Forsyth's DASHR research demo"
+description = "Reusable Rust/wgpu library and reference viewer for Tom Forsyth's DASHR renderer"
+
+[features]
+default = []
+ffi = ["dep:pollster"]
+tooling = ["dep:clap", "dep:pollster"]
+viewer = [
+    "tooling",
+    "dep:egui",
+    "dep:egui-wgpu",
+    "dep:egui-winit",
+    "dep:winit",
+]
+
+[[bin]]
+name = "dashr"
+path = "src/main.rs"
+required-features = ["viewer"]
+
+[[example]]
+name = "generate_ffi_header"
+path = "examples/generate_ffi_header.rs"
+required-features = ["ffi"]
+
+[[example]]
+name = "u1_seam_cut_probe"
+path = "examples/u1_seam_cut_probe.rs"
+required-features = ["tooling"]
+
+[[example]]
+name = "u1_tube_seam_cut_probe"
+path = "examples/u1_tube_seam_cut_probe.rs"
+required-features = ["tooling"]
+
+[lib]
+crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 anyhow = "=1.0.104"
 bytemuck = { version = "=1.25.2", features = ["derive"] }
-clap = { version = "=4.6.7", features = ["derive"] }
-egui = "=0.36.2"
-egui-wgpu = { version = "=0.36.2", default-features = false }
-egui-winit = { version = "=0.36.2", default-features = false, features = ["clipboard", "wayland", "x11"] }
+clap = { version = "=4.6.7", features = ["derive"], optional = true }
+egui = { version = "=0.36.2", optional = true }
+egui-wgpu = { version = "=0.36.2", default-features = false, optional = true }
+egui-winit = { version = "=0.36.2", default-features = false, features = ["clipboard", "wayland", "x11"], optional = true }
 glam = { version = "=0.32.1", features = ["serde"] }
+half = "=2.7.1"
 image = { version = "=0.25.10", default-features = false, features = ["png", "jpeg"] }
-pollster = "=1.0.1"
+pollster = { version = "=1.0.1", optional = true }
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.149"
 sha2 = "=0.10.9"
 wgpu = "=30.0.1"
-winit = "=0.30.13"
+winit = { version = "=0.30.13", optional = true }
 
 [dev-dependencies]
-naga = { version = "=30.0.1", features = ["wgsl-in"] }
+cbindgen = "=0.29.4"
+naga = { version = "=30.0.1", features = ["wgsl-in", "hlsl-out", "msl-out"] }
 
 [profile.release]
 lto = "thin"

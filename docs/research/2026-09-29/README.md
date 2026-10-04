@@ -34,3 +34,7 @@ The follow-up [wgpu attachment-budget note](wgpu-attachment-budget.md) explains 
 ## Evidence and limits
 
 Source inspection and live official API research support the assessment. No build, shader execution, port, GPU timing or Blender integration was validated. GitHub CLI authentication/API access failed, so upstream freshness was not verified. Future implementation must pin versions and prove behavior on real target hardware. Detailed sources are linked beside the claims in the individual documents; the checked-in paper remains the algorithm authority.
+
+## Library-first follow-up (2026-10-02)
+
+The [source audit and research conclusions](../2026-10-02-library-first.md) retain all pasted upstream future-work items and prioritize standalone consumption. The [P8 execution goal](../../plans/standalone-library-goal.md) defines the external-consumer and dependency gates. This later priority decision supersedes the original ordering of optional integrations and optimization; it does not change historical evidence.

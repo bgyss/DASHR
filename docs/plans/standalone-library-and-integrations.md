@@ -1,22 +1,22 @@
 # Standalone library and engine/DCC integration plan
 
-Goal: evolve the native Rust/wgpu port from an experimental single-asset viewer into an embeddable DASHR library that Unreal Engine, Unity and Blender integrations can use. This fork takes up Tom Forsyth's invitation to make a real library; upstream remains a research paper and demo and does not plan this itself. Upstream's points are tracked in [upstream future work](upstream-future-work.md); this page covers architecture, integration routes and phases. The earlier [roadmap](dashr-porting-roadmap.md) P0-P7 is unchanged and is a prerequisite here (P8-P13 extend it).
+Goal: evolve the native Rust/wgpu port from an experimental single-asset viewer into an embeddable DASHR library that Unreal Engine, Unity and Blender integrations can use. This fork takes up Tom Forsyth's invitation to make a real library; upstream remains a research paper and demo and does not plan this itself. Upstream's points are tracked in [upstream future work](upstream-future-work.md); this page covers architecture, integration routes and phases. The earlier [roadmap](dashr-porting-roadmap.md) retains P0-P7 evidence gates; P8-P13 extend it. P8 extraction is the highest development priority and does not depend on completing P5-P7.
 
-Nothing below is implemented. Effort and benefit statements are hypotheses; each phase lists evidence required to call it done.
+The existing Rust crate was a starting point, not proof of a standalone library. As of 2026-10-03, P8 is implemented locally: the `dashr` package exposes a headless default library and its viewer/tooling dependencies are opt-in. The P8 extraction gates passed on Apple M1 Max / Metal. An opt-in P9 C ABI preview now builds and runs a native C client, while engine-owned resources, shader translation and engine scenes remain unverified. D3D11 parity and P10-P13 remain open. Effort and benefit statements are hypotheses; each phase lists evidence required to call it done.
 
 ## Principles
 
-- **Core is host-agnostic.** No windowing, UI, file-dialog or capture code in the library crate. The existing `viewer`, `viewer_overlay` and CLI become clients of it. `asset` and `topology` already avoid device dependencies; keep that and extend it to the C API.
+- **Core is host-agnostic.** The default library feature set excludes windowing, UI, file-dialog, CLI and capture dependencies. The existing viewer, capture and probe clients are feature-gated and use the same library renderer. `asset` and `topology` remain device-independent until GPU occupancy is required for the reference bake.
 - **The host owns the frame.** Engines have their own cameras, depth, lighting, materials, shadows and resource lifetimes. DASHR produces deformation maps, a traced local surface result (UV, object position, normal/tangent frame, local shadow term, hit depth, status) and lets the host shade it. A built-in viewer shader is a reference client, not the product.
 - **Explicit contracts over convenience.** Matrix convention, reverse-Z, UV orientation, height decode, units and sampler semantics are part of a versioned ABI and asset schema, not engine defaults.
 - **Reference stays the authority.** Library output must match the D3D11/paper reference on the fixtures before optimizations are promoted.
-- **Diagnostics are data.** Termination states (hit, miss, escape, budget, invalid basis, repeated teleport) are returned to the host, never hidden.
+- **Diagnostics are data.** Termination states (hit, miss, escape, budget, invalid basis, repeated teleport) are returned to the host, never hidden. Importer diagnostics report high-condition faces and posed non-coplanar intersections with face/chart identifiers.
 
 ## Target architecture
 
 | Layer | Contents | Notes |
 | --- | --- | --- |
-| `dashr-core` (Rust) | Asset validation, topology/seam bake and cache, math reference, deformation/trace passes, status codes | No UI. Deterministic CPU oracle retained for tests |
+| `dashr` Rust library | Asset validation, topology/seam bake and cache, math reference, deformation/trace passes, status codes | Default features are headless; viewer/tooling are opt-in. Deterministic CPU oracle retained for tests |
 | Backend abstraction | wgpu implementation first; trait boundary for host-provided GPU resources | Engines usually require rendering on *their* device (D3D11/D3D12/Vulkan/Metal), so wgpu-owned devices alone are not enough; see Integration modes |
 | `dashr-capi` | Stable C ABI (`cbindgen`), opaque handles, versioned structs, error codes, no panics across the boundary | Consumed by Unity native plugin, Unreal module and Blender binding |
 | Shader package | WGSL source of truth; generated/validated HLSL, GLSL/SPIR-V and MSL variants via Naga or an equivalent translator | Every variant passes the same fixtures; specialization per mode (primary only, primary+shadow) |
@@ -40,16 +40,17 @@ Numbering continues the [roadmap](dashr-porting-roadmap.md). Each phase follows 
 
 ### P8 — library extraction and stable API
 
-Prerequisites: P4 acceptance (D3D11 single-asset parity, reviewed animation) for the parity claim; extraction can start in parallel on the existing code.
-Work: split the crate into a headless core library and the viewer client; define the public Rust API (create context, load/validate asset, bake, update pose, render/trace, read status); add asset-schema versioning, resource lifetime rules and error types; remove global state; make bake results serializable and cache-keyed (see O2).
-Deliverables: `dashr-core` crate, API documentation, headless example that renders a fixture with no window, semantic-versioning policy.
-Acceptance: existing viewer and capture tests run unchanged on the new API; no UI dependencies in core; fixtures identical before and after extraction.
-Stop: if extraction changes outputs, revert the extraction and bisect; do not combine it with optimizations.
+Prerequisites: P4 acceptance (D3D11 single-asset parity, reviewed animation) for parity claims; extraction can start in parallel on the existing code.
+Work: retain the `dashr` package and expose a default-feature headless library; make viewer/CLI/tooling dependencies optional; define the public Rust API (create context, load/validate asset, bake/cache, update pose, render/trace, read status); add asset/cache schema versions, resource lifetime rules and error types; keep viewer state and process-bound provenance outside the default library API.
+Deliverables: `dashr` Rust library API, versioned mesh and bake-cache formats, API documentation, independent headless consumer and semantic-versioning policy.
+Acceptance: the consumer builds from its own locked manifest without copied implementation files, validates/bakes an asset, updates pose, renders and reads primary/shadow statuses; default dependencies exclude UI/CLI; full-float tube/cube outputs and trace counts are byte-identical before/after extraction on the same adapter; ordinary and native GPU gates pass.
+Stop: if extraction changes outputs, isolate and fix the change before continuing; do not bundle algorithm improvements or optimizations with extraction.
 
 ### P9 — C ABI and engine-shader feasibility
 
 Prerequisites: P8.
-Work: `dashr-capi` with opaque handles, POD structs with explicit sizes and a version field, thread-safety contract, callbacks for logging. Prototype the in-engine shader route: translate WGSL to HLSL and MSL, run the deformation and trace passes in a minimal Unity and Unreal scene against engine-owned textures, and compare to the wgpu reference. Measure the interop alternative (copy cost) on the same scene.
+Status (2026-10-03): a `ffi`-feature ABI v1 preview builds as a `cdylib`; Rust layout/error/callback tests and a native C client pass on Apple M1 Max / Metal. The per-thread synchronous log callback reports errors and session lifecycle events. cbindgen 0.29.4 generates the checked-in C header from `src/ffi.rs`, with a check mode wired into `mise run check`. Naga 30.0.1 translates the production WGSL stages to HLSL and MSL. The preview uses a library-owned wgpu device and copies frame output to host memory; target compiler validation, engine-owned textures and Unity/Unreal scene comparisons remain open.
+Work: `dashr-capi` with opaque handles, POD structs with explicit sizes and a version field, thread-safety contract, and host logging callbacks. Prototype the in-engine shader route: translate WGSL to HLSL and MSL, run the deformation and trace passes in a minimal Unity and Unreal scene against engine-owned textures, and compare to the wgpu reference. Measure the interop alternative (copy cost) on the same scene.
 Deliverables: generated C header, ABI tests (layout and round-trip), translation report listing unsupported constructs, decision record selecting the shader path per engine.
 Acceptance: translated shaders pass the fixture comparisons within the agreed error budget; the decision record cites measured timings. Naga/translator gaps are listed as reproducers, not hand-waved.
 Stop: if translated shaders diverge in seam behavior or float precision, keep the wgpu-device route for that engine and record the blocker.
@@ -57,6 +58,7 @@ Stop: if translated shaders diverge in seam behavior or float precision, keep th
 ### P10 — Blender integration
 
 Prerequisites: P5 (exporter and schema) and P8; P9 for in-process binding.
+Status (2026-10-03): the P5 exporter now runs under Blender 5.2.2 with host GPU access; the checked-in icosphere asset imports in the independent consumer. B1 constant/ramp analytic acceptance and human visual review remain open. Blender custom RenderEngine/viewport work is not implemented.
 Work: ship a Blender 4.2+ extension (package contents at the ZIP root with `blender_manifest.toml`, relative imports only, archive layout verified before release) providing the exporter, validator and diagnostics; B4 external-process custom RenderEngine first; B5 viewport; consider an in-process binding via the C API only after B4 shows where copies matter. See the [Blender plan](blender-authoring-plan.md) for experiments B1-B6 and the new items added there for lone edges and seam-continuity checks.
 Deliverables: installable extension for a pinned Blender release, authored example scene, paired Blender/viewer capture, cancellation and failure-handling tests.
 Acceptance: B1-B4 acceptance criteria; clear artist-facing diagnostics naming vertices/faces/charts.
@@ -101,10 +103,10 @@ Stop: if open edges require a different surface-space definition, document it as
 
 ## Research tracks
 
-- **R1 Self-intersection tunnels.** Detect when the surface-space map folds (negative or near-zero determinant, overlapping charts) and report; then test better-behaved mappings on bent fixtures (U5).
+- **R1 Self-intersection tunnels.** CPU diagnostics now report non-coplanar crossings, non-adjacent coplanar overlaps and face orientation flips/collapses with face/chart IDs. Detecting global surface-space map folds and testing better-behaved mappings on bent fixtures remains open (U5).
 - **R2 Conservative bounds.** Min/max pyramids valid under bending, gutters and teleports (O5).
 - **R3 Inter-object visibility.** Shadow and reflection rays leaving the local skin volume; needs engine scene access.
-- **R4 Other representations.** Warping-space animation for SDF/splat pipelines (U19, U20); not on the library path.
+- **R4 Other representations.** [U19-U20 research](../research/2026-10-03/non-heightfield-warps-u19-u20.md) records analytic SDF/warp probes, a two-bone inverse-LBS pose sequence, CPU voxel sampling, matched 32³/64³ GPU voxel warps, finite Menger depth-2 timing, depth-3 exact ray agreement and depth-4 explicit budget exits, and a two-pose Gaussian adapter with GPU sorting. Visual/normal review, authored splat assets, larger sort workloads, repeated depth-3/4 timing, general fractal fields and production integration remain open; these experiments stay outside the library path.
 
 ## Packaging, licensing and governance
 
@@ -114,10 +116,12 @@ Stop: if open edges require a different surface-space definition, document it as
 - Keep shareable docs machine-neutral.
 - Offer upstream issues, not PRs, for findings about the paper (Tom said he is not seeking PRs).
 
-## Suggested next steps
+## Prioritized next steps
 
-1. Promote the remaining P4 gates (Windows Rust path, D3D11 map comparison, reviewed animation). These unblock every claim here.
-2. Start P8 extraction behind unchanged fixtures, since it needs no new hardware.
-3. In parallel, finish B1 (static Blender round trip) for the schema that P11/P12 importers reuse.
-4. Run the P9 shader-translation spike early; its decision record determines the Unity/Unreal architecture and is the largest unknown.
-5. Pick first traversal/storage experiments from [upstream future work](upstream-future-work.md): U12 (split teleport channel) and U15 (affine inverse) are the cheapest measurable starts.
+1. Execute [P8 standalone library goal](standalone-library-goal.md): prove consumption from an independent headless application without viewer dependencies or copied implementation files.
+2. Resolve remaining P0-P4 evidence alongside extraction; keep Windows/D3D11 parity and reviewed animation explicit gates.
+3. Establish P9 C ABI and host-owned resource feasibility before engine-specific integration work. A separate-device copy path must disclose synchronization and measured transfer cost.
+4. Resume P5 authoring and select one P10-P12 integration only after the relevant library/API prerequisites pass.
+5. Run traversal, storage and topology experiments as separately measured changes. Keep all U1-U20 items in the [upstream register](upstream-future-work.md), including deferred research.
+
+The [2026-10-02 research conclusions](../research/2026-10-02-library-first.md) record the source audit and priority decision. Library extraction preserves current behavior; it does not certify robustness, scene readiness or every engine/backend.

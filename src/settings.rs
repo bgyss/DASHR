@@ -14,11 +14,28 @@ pub struct Uniforms {
     pub height_step: [f32; 4],
     pub bones: [[[f32; 4]; 4]; 4],
     pub sun_atlas: [f32; 4],
-    pub modes: [i32; 4],
+    pub modes: [i32; 4], // debug, lighting, distortion, optional forced-hit step
     pub damping_extrusion: [f32; 4],
     pub lighting: [f32; 4],
-    pub control: [i32; 4],
+    pub control: [i32; 4], // teleport iterations, hit-depth toggle, step budget, diagnostics bit + trace-option bits
 }
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EpsilonPolicy {
+    #[default]
+    Reference,
+    ScaleDerived,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ResolvedTolerances {
+    /// UV-space finite-difference offset, in normalized texture coordinates.
+    pub normal_delta_uv: f32,
+    /// Local self-shadow origin offset, in object-space units.
+    pub local_shadow_bias_object_units: f32,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Settings {
@@ -55,6 +72,36 @@ pub struct Settings {
     pub teleport_iterations: i32,
     pub step_budget: i32,
     pub hit_depth: bool,
+    /// Use bounded same-chart and teleport-boundary hit refinement (U2).
+    #[serde(default)]
+    pub hit_refinement: bool,
+    /// Shorten predicted steps that cross the signed teleport SDF (U3).
+    #[serde(default)]
+    pub seam_aware_stepping: bool,
+    /// Retry predicted steps when consecutive inverse surface transforms change sharply (U4).
+    #[serde(default)]
+    pub adaptive_steps: bool,
+    /// Chooses preserved reference tolerances or the opt-in asset-scale policy.
+    #[serde(default)]
+    pub epsilon_policy: EpsilonPolicy,
+    /// Use the specialized 3x3 cofactor inverse in the tracing shader (U15).
+    #[serde(default)]
+    pub specialized_inverse: bool,
+    /// Read a precomputed inverse surface basis from a dedicated atlas (U7).
+    #[serde(default)]
+    pub stored_inverse: bool,
+    /// Generate gutter-filled dynamic maps with a full-atlas compute pass (U8).
+    #[serde(default)]
+    pub compute_edgefill: bool,
+    /// Reconstruct guttered transforms from raw maps in the trace shader (U10).
+    #[serde(default)]
+    pub indirect_edgefill: bool,
+    /// Store seam distance separately from nearest-sampled teleport destinations (U12).
+    #[serde(default)]
+    pub split_teleport: bool,
+    /// Store dynamic transform atlas planes in RGBA16F rather than RGBA32F (U14).
+    #[serde(default)]
+    pub compact_warp: bool,
     pub background: [f32; 3],
     pub sun_time: f32,
     pub sun_period: f32,
@@ -97,6 +144,16 @@ impl Default for Settings {
             teleport_iterations: 0,
             step_budget: 10000,
             hit_depth: false,
+            hit_refinement: false,
+            seam_aware_stepping: false,
+            adaptive_steps: false,
+            epsilon_policy: EpsilonPolicy::Reference,
+            specialized_inverse: false,
+            stored_inverse: false,
+            compute_edgefill: false,
+            indirect_edgefill: false,
+            split_teleport: false,
+            compact_warp: false,
             background: [0.02, 0.025, 0.035],
             sun_time: 8.,
             sun_period: 19.,
@@ -106,6 +163,22 @@ impl Default for Settings {
     }
 }
 impl Settings {
+    pub fn resolved_tolerances(&self) -> ResolvedTolerances {
+        match self.epsilon_policy {
+            EpsilonPolicy::Reference => ResolvedTolerances {
+                normal_delta_uv: self.delta_uv,
+                local_shadow_bias_object_units: self.shadow_acne,
+            },
+            EpsilonPolicy::ScaleDerived => {
+                let object_scale = self.length.max(2.0 * self.radius).max(self.thickness);
+                ResolvedTolerances {
+                    normal_delta_uv: 1.0 / self.atlas as f32,
+                    local_shadow_bias_object_units: object_scale * 1e-3,
+                }
+            }
+        }
+    }
+
     pub fn load(path: &std::path::Path) -> Result<Self> {
         let value: serde_json::Value = serde_json::from_slice(&std::fs::read(path)?)?;
         if value.get("schema").and_then(|v| v.as_str()) == Some("dashr.reference.snapshot.v1") {
@@ -219,6 +292,14 @@ impl Settings {
             "invalid trace budget"
         );
         ensure!(
+            !self.indirect_edgefill || (!self.compute_edgefill && !self.stored_inverse),
+            "trace-time edgefill indirection cannot be combined with compute edgefill or stored inverse"
+        );
+        ensure!(
+            !self.compact_warp || (!self.compute_edgefill && !self.stored_inverse),
+            "compact warp storage cannot be combined with compute edgefill or stored inverse"
+        );
+        ensure!(
             self.background
                 .iter()
                 .all(|v| v.is_finite() && (0.0..=1.0).contains(v)),
@@ -268,6 +349,7 @@ impl Settings {
         Ok(())
     }
     pub fn uniforms(&self, diagnostics: bool) -> Uniforms {
+        let tolerances = self.resolved_tolerances();
         let view = Mat4::look_at_lh(Vec3::from(self.camera), Vec3::from(self.target), Vec3::Y);
         let inv = view.inverse();
         let sun_angle = std::f32::consts::TAU * (self.sun_time % self.sun_period) / self.sun_period;
@@ -309,8 +391,8 @@ impl Settings {
                 self.extra_extrusion,
             ],
             lighting: [
-                self.delta_uv,
-                self.shadow_acne,
+                tolerances.normal_delta_uv,
+                tolerances.local_shadow_bias_object_units,
                 self.indirect,
                 self.normal_scale,
             ],
@@ -318,7 +400,15 @@ impl Settings {
                 self.teleport_iterations,
                 i32::from(self.hit_depth),
                 self.step_budget,
-                i32::from(diagnostics),
+                i32::from(diagnostics)
+                    | ((i32::from(self.hit_refinement)
+                        | (i32::from(self.seam_aware_stepping) << 1)
+                        | (i32::from(self.adaptive_steps) << 2)
+                        | (i32::from(self.specialized_inverse) << 3)
+                        | (i32::from(self.stored_inverse) << 4)
+                        | (i32::from(self.indirect_edgefill) << 5)
+                        | (i32::from(self.split_teleport) << 6))
+                        << 1),
             ],
         };
         if let Some(reference) = self.uniform_override {

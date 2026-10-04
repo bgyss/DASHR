@@ -6,10 +6,10 @@ struct Uniforms {
     height_step: vec4<f32>, // height scale, height offset, step size, step scale
     bones: array<mat4x4<f32>,4>,
     sun_atlas: vec4<f32>, // normalized object-space sun.xyz, atlas size
-    modes: vec4<i32>, // debug, lighting, distortion, reference debug forced-hit step
+    modes: vec4<i32>, // debug, lighting, distortion, optional forced-hit step
     damping_extrusion: vec4<f32>, // damping factors 1/2/3, extra shell extrusion
     lighting: vec4<f32>, // deltaUV, shadow acne, indirect light, height-normal scale
-    control: vec4<i32>, // teleport iterations, hit-depth toggle, production budget, diagnostics
+    control: vec4<i32>, // teleport iterations, hit-depth toggle, production budget, diagnostics/trace-option bits
 }
 @group(0) @binding(0) var<uniform> u: Uniforms;
 @group(1) @binding(0) var warp0: texture_2d<f32>;
@@ -22,6 +22,17 @@ struct Uniforms {
 @group(1) @binding(7) var albedo_map: texture_2d<f32>;
 @group(1) @binding(8) var normal_map: texture_2d<f32>;
 @group(1) @binding(9) var linear_sampler: sampler;
+@group(1) @binding(10) var inverse0: texture_2d<f32>;
+@group(1) @binding(11) var inverse1: texture_2d<f32>;
+@group(1) @binding(12) var inverse2: texture_2d<f32>;
+@group(1) @binding(13) var destination_map: texture_2d<f32>;
+@group(1) @binding(14) var distance_map: texture_2d<f32>;
+fn trace_feature(flag:i32) -> bool {
+    return ((u.control.w>>1)&flag)!=0;
+}
+fn diagnostics_enabled() -> bool {
+    return (u.control.w&1)!=0;
+}
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) uv: vec3<f32>,
@@ -62,19 +73,99 @@ fn affine(b:mat3x3<f32>,p:vec3<f32>) -> mat4x4<f32> {
     return mat4x4<f32>(vec4<f32>(b[0],0.0),vec4<f32>(b[1],0.0),vec4<f32>(b[2],0.0),vec4<f32>(p,1.0));
 }
 fn inverse_basis(b:mat3x3<f32>) -> mat3x3<f32> {
+    if(trace_feature(8)){return inverse_basis_fast(b);}
     let m=inverse4(affine(b,vec3<f32>(0.0)));
     return mat3x3<f32>(m[0].xyz,m[1].xyz,m[2].xyz);
+}
+fn inverse_basis_fast(b:mat3x3<f32>) -> mat3x3<f32> {
+    let determinant=dot(b[0],cross(b[1],b[2]));
+    if(abs(determinant)<1e-30){return mat3x3<f32>();}
+    let row0=cross(b[1],b[2])/determinant;
+    let row1=cross(b[2],b[0])/determinant;
+    let row2=cross(b[0],b[1])/determinant;
+    return mat3x3<f32>(
+        vec3<f32>(row0.x,row1.x,row2.x),
+        vec3<f32>(row0.y,row1.y,row2.y),
+        vec3<f32>(row0.z,row1.z,row2.z)
+    );
+}
+fn object_basis(uv:vec2<f32>,surface_from_object:mat3x3<f32>) -> mat3x3<f32> {
+    if(trace_feature(16)) {
+        let a=sample_float(inverse0,uv).xyz;
+        let b=sample_float(inverse1,uv).xyz;
+        let c=sample_float(inverse2,uv).xyz;
+        return mat3x3<f32>(a,b,c);
+    }
+    return inverse_basis(surface_from_object);
 }
 fn nearest(t:texture_2d<f32>,uv:vec2<f32>) -> vec4<f32> {
     let dims=vec2<i32>(textureDimensions(t));
     return textureLoad(t,clamp(vec2<i32>(floor(uv*vec2<f32>(dims))),vec2<i32>(0),dims-vec2<i32>(1)),0);
 }
+fn sample_float_bilinear(t:texture_2d<f32>,uv:vec2<f32>) -> vec4<f32> {
+    let dims=vec2<i32>(textureDimensions(t));
+    let texel=uv*vec2<f32>(dims)-vec2<f32>(0.5);
+    let base=vec2<i32>(floor(texel));
+    let fraction=fract(texel);
+    let maximum=dims-vec2<i32>(1);
+    let a=textureLoad(t,clamp(base,vec2<i32>(0),maximum),0);
+    let b=textureLoad(t,clamp(base+vec2<i32>(1,0),vec2<i32>(0),maximum),0);
+    let c=textureLoad(t,clamp(base+vec2<i32>(0,1),vec2<i32>(0),maximum),0);
+    let d=textureLoad(t,clamp(base+vec2<i32>(1,1),vec2<i32>(0),maximum),0);
+    return mix(mix(a,b,fraction.x),mix(c,d,fraction.x),fraction.y);
+}
+fn sample_height_bilinear(uv:vec2<f32>) -> f32 {
+    // U2 hit refinement uses explicit texel interpolation so the root target does not inherit
+    // adapter-specific hardware-filter precision from ordinary ray steps.
+    let dims=vec2<i32>(textureDimensions(height_map));
+    let texel=uv*vec2<f32>(dims)-vec2<f32>(0.5);
+    let base=vec2<i32>(floor(texel));
+    let fraction=fract(texel);
+    let maximum=dims-vec2<i32>(1);
+    let a=textureLoad(height_map,clamp(base,vec2<i32>(0),maximum),0).r;
+    let b=textureLoad(height_map,clamp(base+vec2<i32>(1,0),vec2<i32>(0),maximum),0).r;
+    let c=textureLoad(height_map,clamp(base+vec2<i32>(0,1),vec2<i32>(0),maximum),0).r;
+    let d=textureLoad(height_map,clamp(base+vec2<i32>(1,1),vec2<i32>(0),maximum),0).r;
+    return mix(mix(a,b,fraction.x),mix(c,d,fraction.x),fraction.y);
+}
+fn sample_height(uv:vec2<f32>) -> f32 {
+    if(trace_feature(128)){return sample_height_bilinear(uv);}
+    return textureSampleLevel(height_map,linear_sampler,uv,0.0).r;
+}
+fn seam_distance(uv:vec2<f32>) -> f32 {
+    if(trace_feature(64)){return sample_float(distance_map,uv).r;}
+    return sample_float(teleport_map,uv).z;
+}
+fn seam_distance_bilinear(uv:vec2<f32>) -> f32 {
+    if(trace_feature(64)){return sample_float_bilinear(distance_map,uv).r;}
+    return sample_float_bilinear(teleport_map,uv).z;
+}
+fn nearest_seam_destination(uv:vec2<f32>) -> vec2<f32> {
+    if(trace_feature(64)){return nearest(destination_map,uv).xy;}
+    return nearest(teleport_map,uv).xy;
+}
 struct Warp { basis:mat3x3<f32>, anchor:vec3<f32>, distortion:vec2<f32>, valid:bool }
-fn read_warp(uv:vec2<f32>) -> Warp {
+fn read_warp_raw(uv:vec2<f32>) -> Warp {
     let a=sample_float(warp0,uv); let b=sample_float(warp1,uv);
     let c=sample_float(warp2,uv); let d=sample_float(warp3,uv);
     let basis=mat3x3<f32>(a.xyz,b.xyz,c.xyz);
     return Warp(basis,d.xyz,vec2<f32>(a.w,b.w),c.w>0.5 && valid_basis(basis));
+}
+fn read_warp(uv:vec2<f32>) -> Warp {
+    if(!trace_feature(32)){return read_warp_raw(uv);}
+    let source=sample_float(edge_map,uv).xy;
+    var w=read_warp_raw(source);
+    if(u.modes.z==1) {
+        let step=1.0/u.sun_atlas.w;
+        let pu=read_warp_raw(sample_float(edge_map,uv+vec2<f32>(step,0.0)).xy).anchor;
+        let nu=read_warp_raw(sample_float(edge_map,uv-vec2<f32>(step,0.0)).xy).anchor;
+        let pv=read_warp_raw(sample_float(edge_map,uv+vec2<f32>(0.0,step)).xy).anchor;
+        let nv=read_warp_raw(sample_float(edge_map,uv-vec2<f32>(0.0,step)).xy).anchor;
+        w.distortion=vec2<f32>((w.basis*(pu-nu)).x,(w.basis*(pv-nv)).y)/step;
+        let offset=uv-source;
+        if(any(offset!=vec2<f32>(0.0))){w.anchor+=inverse_basis(w.basis)*vec3<f32>(offset,0.0);}
+    }
+    return w;
 }
 struct Surface { position:vec3<f32>, factor:f32, valid:bool }
 fn damping_axis(distortion:f32)->vec2<f32> {

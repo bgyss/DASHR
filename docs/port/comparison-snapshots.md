@@ -27,9 +27,9 @@ Zip and attach that whole directory for comparison. The PNG plus manifest are ne
 From the repository root:
 
 ```sh
-scripts/in-nix cargo run --locked --release -- capture \
+scripts/in-nix cargo run --locked --release --features viewer -- capture \
   --settings path/to/manifest.json --out out/reference-replay
-scripts/in-nix cargo run --locked --release -- view \
+scripts/in-nix cargo run --locked --release --features viewer -- view \
   --settings path/to/manifest.json
 ```
 

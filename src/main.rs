@@ -1,7 +1,11 @@
 use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
 use dashr::{
-    asset::MeshKind, capture, gpu_resources::GpuContext, probe::contracts, settings::Settings,
+    asset::MeshKind,
+    capture,
+    gpu_resources::GpuContext,
+    probe::contracts,
+    settings::{EpsilonPolicy, Settings},
 };
 use std::path::PathBuf;
 
@@ -82,6 +86,36 @@ struct Options {
     step_budget: Option<i32>,
     #[arg(long)]
     hit_depth: bool,
+    /// Refine same-chart heightfield hits with a bounded binary search.
+    #[arg(long)]
+    refine_hits: bool,
+    /// Shorten steps that would cross a teleport-map edge.
+    #[arg(long)]
+    seam_aware_stepping: bool,
+    /// Shorten steps when consecutive surface transforms change rapidly.
+    #[arg(long)]
+    adaptive_steps: bool,
+    /// Derive UV and local-shadow tolerances from atlas and asset dimensions.
+    #[arg(long)]
+    scale_derived_epsilons: bool,
+    /// Use the specialized 3x3 cofactor inverse in the tracing shader.
+    #[arg(long)]
+    specialized_inverse: bool,
+    /// Read the precomputed inverse surface basis atlas instead of inverting per sample.
+    #[arg(long)]
+    stored_inverse: bool,
+    /// Use the opt-in full-atlas compute shader for dynamic edgefill.
+    #[arg(long)]
+    compute_edgefill: bool,
+    /// Reconstruct guttered transforms from the raw deformation maps while tracing.
+    #[arg(long)]
+    indirect_edgefill: bool,
+    /// Split seam distances and discontinuous destination coordinates into separate textures.
+    #[arg(long)]
+    split_teleport: bool,
+    /// Store dynamic transform atlas planes in RGBA16F instead of RGBA32F.
+    #[arg(long)]
+    compact_warp: bool,
     #[arg(long)]
     manual_filter: bool,
     /// 0 selects the adapter policy; 1/2/4 forces an MRT width.
@@ -115,6 +149,36 @@ impl Options {
         }
         if self.hit_depth {
             s.hit_depth = true;
+        }
+        if self.refine_hits {
+            s.hit_refinement = true;
+        }
+        if self.seam_aware_stepping {
+            s.seam_aware_stepping = true;
+        }
+        if self.adaptive_steps {
+            s.adaptive_steps = true;
+        }
+        if self.scale_derived_epsilons {
+            s.epsilon_policy = EpsilonPolicy::ScaleDerived;
+        }
+        if self.specialized_inverse {
+            s.specialized_inverse = true;
+        }
+        if self.stored_inverse {
+            s.stored_inverse = true;
+        }
+        if self.compute_edgefill {
+            s.compute_edgefill = true;
+        }
+        if self.indirect_edgefill {
+            s.indirect_edgefill = true;
+        }
+        if self.split_teleport {
+            s.split_teleport = true;
+        }
+        if self.compact_warp {
+            s.compact_warp = true;
         }
         if let Some(reference) = s
             .uniform_override

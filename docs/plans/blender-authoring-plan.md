@@ -40,6 +40,8 @@ Skeleton playback is a separate exporter mode: export rest geometry, joint indic
 
 Export one authored inflated sphere-like closed mesh with deliberately visible seams and a constant/ramp height. Compare vertex/UV payloads and analytic hits; then test a detailed height image. Acceptance: importer diagnostics work and the benchmark geometry gates pass. Export success alone is insufficient.
 
+**Status (2026-10-03):** Blender 5.2.2 exported a checked-in radius-1.5 icosphere fixture with 80 per-face UV islands and 120 seam edges, and the independent Rust consumer baked and rendered it. Constant and ramp material roots both render. The native filtered ramp path exceeds the `1e-5` hit/depth budget. A probe-only manually bilinear height path still exceeds the gate with hardware-filtered float maps; the fully manual height and float-map path passes, but is not the production path. A CPU displaced-mesh oracle for this sphere and visual seam/silhouette review remain open.
+
 ### B2: evaluated deformation
 
 Export a small fixed-topology bending sequence. Compare renderer outputs with the frozen evaluated geometry and establish temporal seam stability. Cache static maps by topology/UV schema; rebuild dynamic transforms per changed pose. Acceptance: the full cycle passes the protocol and no double animation occurs.

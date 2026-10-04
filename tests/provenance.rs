@@ -1,3 +1,5 @@
+#![cfg(feature = "tooling")]
+
 use dashr::{capture::build_provenance, material::hash};
 #[test]
 fn build_snapshot_identifies_the_compiled_shader() {

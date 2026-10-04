@@ -1,10 +1,11 @@
 //! Shader variants preserve representation while changing resource access/pass width.
 pub fn source(pass: &str, filtered: bool, planes: u32, first: u32) -> String {
-    assert!([1, 2, 4].contains(&planes) && first + planes <= 4);
+    assert!((1..=4).contains(&planes) && first + planes <= 4);
     let base = common(filtered);
     let body = match pass {
         "deform" => include_str!("../shaders/deform.wgsl"),
         "edgefill" => include_str!("../shaders/edgefill.wgsl"),
+        "inverse" => include_str!("../shaders/inverse.wgsl"),
         "trace" => include_str!("../shaders/trace.wgsl"),
         _ => panic!("unknown pass"),
     };
@@ -18,7 +19,7 @@ pub fn source(pass: &str, filtered: bool, planes: u32, first: u32) -> String {
     }
     let input = match pass {
         "deform" => "DeformVertex",
-        "edgefill" => "Fullscreen",
+        "edgefill" | "inverse" => "Fullscreen",
         _ => "ShellVertex",
     };
     let function = if pass == "trace" {
@@ -63,4 +64,35 @@ pub fn common(filtered: bool) -> String {
         .to_owned()
     };
     format!("{}\n{sample}\n", include_str!("../shaders/common.wgsl"))
+}
+
+pub fn edgefill_compute(filtered: bool) -> String {
+    let mut source = source("edgefill", filtered, 4, 0);
+    source.push_str(include_str!("../shaders/edgefill_compute.wgsl"));
+    source
+}
+
+#[cfg(feature = "tooling")]
+pub fn space_warp_sdf_probe() -> &'static str {
+    include_str!("../shaders/space_warp_sdf_probe.wgsl")
+}
+
+#[cfg(feature = "tooling")]
+pub fn inverse_lbs_sdf_probe() -> &'static str {
+    include_str!("../shaders/inverse_lbs_sdf_probe.wgsl")
+}
+
+#[cfg(feature = "tooling")]
+pub fn menger_sdf_probe() -> &'static str {
+    include_str!("../shaders/menger_sdf_probe.wgsl")
+}
+
+#[cfg(feature = "tooling")]
+pub fn inverse_lbs_voxel_probe() -> &'static str {
+    include_str!("../shaders/inverse_lbs_voxel_probe.wgsl")
+}
+
+#[cfg(feature = "tooling")]
+pub fn gaussian_splat_probe() -> &'static str {
+    include_str!("../shaders/gaussian_splat_probe.wgsl")
 }

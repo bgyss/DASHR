@@ -37,3 +37,7 @@ Nix supplies rustup/mise; Rust 1.95.0 and Cargo dependencies are pinned, with mu
 [Optimization and porting research](docs/research/2026-09-29/README.md) assesses the source, macOS/Metal and Rust/wgpu feasibility, Blender integration, and phased development with benchmark gates. The dated research predates the native implementation. No speedup or cross-platform parity is claimed.
 
 The forward goal is a standalone library for Unreal Engine, Unity and Blender. See [Tom's future work traced into this fork](docs/plans/upstream-future-work.md) and the [standalone library and integration plan](docs/plans/standalone-library-and-integrations.md).
+
+The default `dashr` dependency is headless and does not enable `winit`, `egui`, or CLI dependencies. Applications can consume it with `default-features = false`; enable the `viewer` feature to build the bundled CLI and interactive viewer. An optional `ffi` feature builds a headless cdylib with a checked-in C header. Run `scripts/in-nix mise run ffi-smoke` to build the library and compile/run the native C consumer. See the [library API guide](docs/port/library-api.md), the independent Rust consumer, and the [C ABI smoke client](examples/c-consumer/main.c).
+
+The [2026-10-04 work report](docs/reports/2026-10-04-standalone-library-and-future-work.md) covers library acceptance, all 20 future-work items, measured experiments and remaining gates. The [announcement drafts](docs/social/launch-posts.md) include an addendum to the first post.

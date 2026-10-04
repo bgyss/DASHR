@@ -15,6 +15,33 @@ fn inverse_preserves_skew_and_metric_scale() {
     assert!(inverse_basis(DMat3::from_cols(DVec3::X, DVec3::X, DVec3::Z)).is_err());
     assert!(inverse_basis(DMat3::from_diagonal(DVec3::new(f64::NAN, 1., 1.))).is_err());
 }
+
+#[test]
+fn cofactor_inverse_matches_the_general_metric_basis_inverse() {
+    for basis in [
+        DMat3::from_cols(
+            DVec3::new(7.0, 0.0, 0.0),
+            DVec3::new(2.0, 3.0, 0.0),
+            DVec3::new(0.0, 0.0, 0.4),
+        ),
+        DMat3::from_cols(
+            DVec3::new(2.0, 1.0, 0.5),
+            DVec3::new(-0.5, 3.0, 0.25),
+            DVec3::new(0.2, -0.4, 0.8),
+        ),
+    ] {
+        let expected = inverse_basis(basis).unwrap();
+        let specialized = inverse_basis_cofactor(basis).unwrap();
+        for (a, b) in specialized
+            .to_cols_array()
+            .into_iter()
+            .zip(expected.to_cols_array())
+        {
+            assert!((a - b).abs() < 1e-10);
+        }
+    }
+    assert!(inverse_basis_cofactor(DMat3::ZERO).is_err());
+}
 #[test]
 fn anchor_and_gutter_correction_preserve_object_point() {
     let b = DMat3::from_diagonal(DVec3::new(6., 4., 0.8));
